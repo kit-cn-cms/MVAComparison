@@ -46,10 +46,10 @@ addtional_variables=["BDTOhio_v2_input_h0",
 #samples have a name, a color, a path, and a selection (not implemented yet for training)
 #only the path is really relevant atm
 cat='6j4t'
-signal_test=Sample('t#bar{t}H test',ROOT.kBlue,'/storage/jbod/pkraemer/newsamples/ttH_nominal.root','') 
-signal_train=Sample('t#bar{t}H training',ROOT.kGreen,'/storage/jbod/pkraemer/newsamples/ttH_nominal.root','')
-background_test=Sample('t#bar{t} test',ROOT.kRed+1,'/storage/jbod/pkraemer/newsamples/ttbar_nominal.root','')
-background_train=Sample('t#bar{t} training',ROOT.kRed-1,'/storage/jbod/pkraemer/newsamples/ttbar_nominal.root','')
+signal_test=Sample('t#bar{t}H test',ROOT.kBlue,'/nfs/dust/cms/user/pkraemer/trees/ttH_nominal.root','') 
+signal_train=Sample('t#bar{t}H training',ROOT.kGreen,'/nfs/dust/cms/user/pkraemer/trees/ttH_nominal.root','')
+background_test=Sample('t#bar{t} test',ROOT.kRed+1,'/nfs/dust/cms/user/pkraemer/trees/ttbar_nominal.root','')
+background_train=Sample('t#bar{t} training',ROOT.kRed-1,'/nfs/dust/cms/user/pkraemer/trees/ttbar_nominal.root','')
 trainer=Trainer(variables,addtional_variables)
 
 trainer.addSamples(signal_train,background_train,signal_test,background_test) #add the sample defined above
@@ -79,15 +79,15 @@ trainer.setSelection('N_Jets>=6&&N_BTagsM>=4') # selection for category (not nec
 #trainer.optimizeOption('nCuts')
 #print "these are found to be the 8 best variables and best bdt and factory options"
 
-#trainer.setBDTOption("NTrees=1200")
-#trainer.setBDTOption("Shrinkage=0.02")
-#trainer.setBDTOption("nCuts=50")
-#trainer.setBDTOption("MaxDepth=2")
+trainer.setBDTOption("NTrees=1200")
+trainer.setBDTOption("Shrinkage=0.02")
+trainer.setBDTOption("nCuts=50")
+trainer.setBDTOption("MaxDepth=2")
 
 #trainer.optimizeOption('Shrinkage')
 #trainer.optimizeOption('nCuts')
 
-trainer.suche(1200, 1200, 0.001, 0.05, 30, 60, 10)
+#trainer.suche(1200, 1200, 0.001, 0.05, 30, 60, 10)
 #nt3,nt4,sh3,sh4,nc3,nc4 = trainer.suche(nt1,nt2,sh1,sh2,nc1,nc2,2)
 
 print trainer.best_variables
