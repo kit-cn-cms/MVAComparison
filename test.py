@@ -79,15 +79,15 @@ trainer.setSelection('N_Jets>=6&&N_BTagsM>=4') # selection for category (not nec
 #trainer.optimizeOption('nCuts')
 #print "these are found to be the 8 best variables and best bdt and factory options"
 
-#trainer.setBDTOption("NTrees=1200")
-#trainer.setBDTOption("Shrinkage=0.02")
-#trainer.setBDTOption("nCuts=50")
-#trainer.setBDTOption("MaxDepth=2")
+trainer.setBDTOption("NTrees=1200")
+trainer.setBDTOption("Shrinkage=0.02")
+trainer.setBDTOption("nCuts=50")
+trainer.setBDTOption("MaxDepth=2")
 
 #trainer.optimizeOption('Shrinkage')
 #trainer.optimizeOption('nCuts')
 
-trainer.suche(1200, 1200, 0.001, 0.05, 30, 60, 10)
+#trainer.suche(1200, 1200, 0.001, 0.05, 30, 60, 10)
 #nt3,nt4,sh3,sh4,nc3,nc4 = trainer.suche(nt1,nt2,sh1,sh2,nc1,nc2,2)
 
 print trainer.best_variables
