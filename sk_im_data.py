@@ -1,4 +1,5 @@
 from skBDT import data
+import matplotlib.pyplot as plt
 
 variables=[#"BDT_common5_input_avg_dr_tagged_jets",
 	   #"BDT_common5_input_sphericity",
@@ -33,7 +34,17 @@ variables=[#"BDT_common5_input_avg_dr_tagged_jets",
 	   "Evt_4b2bLikelihoodRatio"
 ]
 
+plt.figure()
 
 DATA=data(variables)
-DATA.SetSPath('test')
-print DATA.SPath
+DATA.Convert()
+#DATA.SetGradBoostOption("n_estimators=0")
+#print DATA.GradBoostOptions
+#DATA.SetGradBoostDefault()
+print DATA.GradBoostOptions
+
+
+
+train1=DATA.Classify()
+
+print DATA.Score(train1)
