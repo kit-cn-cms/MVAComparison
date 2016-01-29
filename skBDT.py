@@ -8,6 +8,7 @@ from root_numpy import root2array, rec2array
 from root_numpy import array2root
 import ROOT
 from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.metrics import roc_auc_score
 from mvautils import *
 import math
 import sys
@@ -50,6 +51,7 @@ class data:
 	self.train_Signal=[]
 	self.outname="SKout.root"
 #	self.SKout=ROOT.TFile(self.outname,"RECREATE")
+	self.sy_tr=[]
 
 
 
@@ -169,6 +171,7 @@ class data:
   def WriteOutTree(self,train):#implement TestSamples 
 	SKout = self.RecreateOutRoot()
 	sy_trained = train.predict(self.train_Signal) #only gives binary prediction
+	self.sy_tr=sy_trained
 	sX_trained = train.decision_function(self.train_Signal)
 	sy_trained.dtype = [('training_output_y', np.float64)]
 	sX_trained.dtype = [('training_output', np.float64)]
@@ -181,3 +184,6 @@ class data:
 	bX_trained.dtype = [('training_output', np.float64)]
 	array2root(by_trained, self.outname, "Background_train")
 	array2root(bX_trained, self.outname, "Background_train")
+
+  def ROCInt(self,train):
+	return roc_auc_score(self.Y_Array, train.decision_function(self.X_Array))

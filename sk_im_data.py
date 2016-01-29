@@ -21,4 +21,6 @@ DATA.Convert()
 train1=DATA.Classify()
 #DATA.WriteSignalTree()
 
+print "ROC:"+str(DATA.ROCInt(train1))
+
 print DATA.Score(train1)
