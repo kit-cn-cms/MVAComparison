@@ -4,7 +4,9 @@ sys.path.insert(0, '../pyroot-plotscripts')
 from plotutils import *
 from mvautils import *
 #from interpol_vars import *
+from time import *
 
+t1=clock()
 
 variables=["X","Y"]
 
@@ -50,19 +52,22 @@ trainer.setVerbose(True) # no output during BDT training and testing
 
 trainer.setBDTOption("NTrees=1200")
 trainer.setBDTOption("Shrinkage=0.02")
-trainer.setBDTOption("nCuts=50")
+#trainer.setBDTOption("nCuts=50")
 trainer.setBDTOption("MaxDepth=2")
-
+#trainer.setBDTOption("MinNodeSize=0.01%")
 #trainer.optimizeOption('Shrinkage')
 #trainer.optimizeOption('nCuts')
 
-#trainer.suche(1200, 1200, 0.001, 0.05, 30, 60, 10)
+trainer.suche(1000, 2000, 0.01, 0.3, 50, 50, 2)
 #nt3,nt4,sh3,sh4,nc3,nc4 = trainer.suche(nt1,nt2,sh1,sh2,nc1,nc2,2)
 
 print trainer.best_variables
 trainer.trainBDT(variables)
+
+t2=clock()
+
 ROC, ksS, ksB, ROCT = trainer.evaluateLastTraining()
 print ROC, ROCT, ksS, ksB
-
+print("Laufzeit: %f"%(t2-t1))
 print trainer.bdtoptions
 print trainer.factoryoptions

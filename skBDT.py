@@ -15,8 +15,10 @@ import sys
 import os
 import datetime
 from time import *
-
+from sklearn.metrics import roc_curve, auc
+import matplotlib.pyplot as plt
 #from root_numpy import tree2rec
+import pickle
 
 class data:
   def __init__(self, variables):
@@ -52,9 +54,16 @@ class data:
 	self.outname="SKout.root"
 #	self.SKout=ROOT.TFile(self.outname,"RECREATE")
 	self.sy_tr=[]
+	self.ROC_Color=0
+	self.ROC_fig = plt.figure()
+	self.ROC_Curve=[[],[],[]]
+	self.logfilename="log.txt"
 
 
 
+
+  def SetLogfileName(self,NAME=''):
+	self.logfilename = NAME
 
   def SetSPath(self,SPATH=''):
 	self.SPath=SPATH
@@ -143,7 +152,7 @@ class data:
 
   def Classify(self):
 	train = GradientBoostingClassifier(learning_rate=self.learning_rate, n_estimators=self.n_estimators, max_depth=self.max_depth, random_state=self.random_state, loss=self.loss, subsample=self.subsample, min_samples_split=self.min_samples_split, min_samples_leaf=self.min_samples_leaf, min_weight_fraction_leaf=self.min_weight_fraction_leaf, init=self.init, max_features=self.max_features, verbose=self.verbose, max_leaf_nodes=self.max_leaf_nodes, warm_start=self.warm_start, presort=self.presort).fit(self.X_Array,self.Y_Array)
-	self.PrintLog()
+	self.PrintLog(train)
 	self.WriteOutTree(train)
 	return train
 
@@ -156,10 +165,18 @@ class data:
   def Score(self,train):
 	return train.score(self.X_Array, self.Y_Array)
 
-  def PrintLog(self):
+  def PrintLog(self,train):
+	gbo='learning_rate='+str(self.learning_rate)+', n_estimators='+str(self.n_estimators)+', max_depth='+str(self.max_depth)+', random_state='+str(self.random_state)+', loss='+str(self.loss)+', subsample='+str(self.subsample)+', min_samples_split='+str(self.min_samples_split)+', min_samples_leaf='+str(self.min_samples_leaf)+', min_weight_fraction_leaf='+str(self.min_weight_fraction_leaf)+', init='+str(self.init)+', max_features='+str(self.max_features)+', verbose='+str(self.verbose)+', max_leaf_nodes='+str(self.max_leaf_nodes)+', warm_start='+str(self.warm_start)+', presort='+str(self.presort)
+	outstr='\n\n-----------------input variables:-----------------\n'+str(self.variables)+'\n\n-----------------weights:-----------------\n'+str(self.weights)+'\n\n-----------------Gradient Boost Options:-----------------\n'+gbo+'\n\n\n\n'+'--------------- ROC integral = '+str(self.ROCInt(train))+' -----------------'
+	logfile = open(self.logfilename,"a+")
+	logfile.write('######'+str(localtime())+'#####'+outstr+'###############################################\n\n\n\n\n')
+	logfile.close()
+	print outstr
+
+  def PrintOpts(self):
 	gbo='learning_rate='+str(self.learning_rate)+', n_estimators='+str(self.n_estimators)+', max_depth='+str(self.max_depth)+', random_state='+str(self.random_state)+', loss='+str(self.loss)+', subsample='+str(self.subsample)+', min_samples_split='+str(self.min_samples_split)+', min_samples_leaf='+str(self.min_samples_leaf)+', min_weight_fraction_leaf='+str(self.min_weight_fraction_leaf)+', init='+str(self.init)+', max_features='+str(self.max_features)+', verbose='+str(self.verbose)+', max_leaf_nodes='+str(self.max_leaf_nodes)+', warm_start='+str(self.warm_start)+', presort='+str(self.presort)
 	outstr='\n\n-----------------input variables:-----------------\n'+str(self.variables)+'\n\n-----------------weights:-----------------\n'+str(self.weights)+'\n\n-----------------Gradient Boost Options:-----------------\n'+gbo+'\n\n\n\n'
-	logfile = open("log.txt","a+")
+	logfile = open(self.logfilename,"a+")
 	logfile.write('######'+str(localtime())+'#####'+outstr+'###############################################\n\n\n\n\n')
 	logfile.close()
 	print outstr
@@ -187,3 +204,135 @@ class data:
 
   def ROCInt(self,train):
 	return roc_auc_score(self.Y_Array, train.decision_function(self.X_Array))
+
+  def ROCCurve(self,train):
+	decisions = train.decision_function(self.X_Array)
+# Compute ROC curve and area under the curve
+	fpr, tpr, thresholds = roc_curve(self.Y_Array, decisions)
+	#print fpr
+	#print "\n\n\n\n\n"
+	#print tpr
+	fprfile = open("fpr.pkl","w")
+	tprfile = open("tpr.pkl","w")
+	pickle.dump(fpr,fprfile)
+	pickle.dump(tpr,tprfile)
+	tprfile.close()	
+	fprfile.close()
+	self.ROC_Curve[0] = 1-fpr
+	self.ROC_Curve[1] = tpr
+	self.ROC_Curve[2] = thresholds
+	roc_auc = auc(fpr, tpr)
+	fig = plt.figure()
+	plt.plot((1-fpr), tpr, lw=1, label='ROC (area = %0.2f)'%(roc_auc))
+
+	plt.plot([0, 1], [1, 0], '--', color=(0.6, 0.6, 0.6), label='Luck')
+	plt.xlim([-0.05, 1.05])
+	plt.ylim([-0.05, 1.05])
+	plt.xlabel('False Positive Rate')
+	plt.ylabel('True Positive Rate')
+	plt.title('Receiver operating characteristic')
+	plt.legend(loc="lower right")
+	plt.grid()
+	plt.show()
+	fig.savefig("bspROC.pdf")
+
+
+#  def KSTest(self,train):
+
+  def TestGradBoostOptions(self, minestimators, maxestimators, minlearning_rate, maxlearning_rate, steps):
+	self.SetLogfileName("BestROClog.txt")
+	self.SetGradBoostOption('n_estimators', minestimators)
+	self.SetGradBoostOption('learning_rate', minlearning_rate)
+	estimators=[]
+	rate=[]
+	rocint=[]
+
+	for i in range(steps):
+		self.SetGradBoostOption('n_estimators', (minestimators+(i*((maxestimators-minestimators)/steps))))
+#		estimators.append((minestimators+(i*((maxestimators-minestimators)/steps))))
+		for k in range(steps):
+			self.SetGradBoostOption('learning_rate', (minlearning_rate+(k*((maxlearning_rate-minlearning_rate)/steps))))
+			estimators.append((minestimators+(i*((maxestimators-minestimators)/steps))))
+			rate.append((minlearning_rate+(k*((maxlearning_rate-minlearning_rate)/steps))))
+			train=self.Classify()
+			self.PrintOutput()
+			rocint.append(self.ROCInt(train))
+			#print str(rocint)
+
+	rocint = np.array(rocint)
+	estimators = np.array(estimators)
+	rate = np.array(rate)
+	print str(estimators) + str(rate) + str(rocint)
+	fig = plt.figure()
+	plt.hist2d(estimators,rate,bins=steps,weights=rocint)
+	plt.colorbar()
+	plt.xlabel("n_estimators")
+	plt.xticks(estimators,estimators)
+	plt.ylabel("learning_rate")
+	plt.yticks(rate,rate)
+	plt.title("ROC integrals")
+	plt.show()
+	fig.savefig("bestROC.pdf")
+
+	index=np.argmax(rocint)
+	self.SetLogfileName("BestOptions.txt")
+	self.SetGradBoostOption('n_estimators', estimators[index])
+	self.SetGradBoostOption('learning_rate', rate[index])
+	self.PrintOpts()
+
+
+  def TestTwoOptions(self, name1, name2, min1, max1, min2, max2, steps):
+	self.SetLogfileName("BestROClog_"+str(name1)+"_"+str(name2)+".txt")
+	self.SetGradBoostOption(name1, min1)
+	self.SetGradBoostOption(name2, min2)
+	opt1=[]
+	opt2=[]
+	rocint=[]
+
+	for i in range(steps):
+		self.SetGradBoostOption(name1, int((min1+(i*((max1-min1)/steps)))))
+#		estimators.append((minestimators+(i*((maxestimators-minestimators)/steps))))
+		for k in range(steps):
+			self.SetGradBoostOption(name2, int((min2+(k*((max2-min2)/steps)))))
+			opt1.append(int((min1+(i*((max1-min1)/steps)))))
+			opt2.append(int((min2+(k*((max2-min2)/steps)))))
+			train=self.Classify()
+			rocint.append(self.ROCInt(train))
+			#print str(rocint)
+
+	rocint = np.array(rocint)
+	opt1 = np.array(opt1)
+	opt2 = np.array(opt2)
+	#print str(estimators) + str(rate) + str(rocint)
+	fig = plt.figure()
+	plt.hist2d(opt1,opt2,bins=steps,weights=rocint)
+	plt.colorbar()
+	plt.xlabel(name1)
+	plt.xticks(opt1,opt1)
+	plt.ylabel(name2)
+	plt.yticks(opt2,opt2)
+	plt.title("ROC integrals")
+	plt.show()
+	fig.savefig("bestROC_"+str(name1)+"_"+str(name2)+".pdf")
+
+	index=np.argmax(rocint)
+	self.SetLogfileName("BestOptions_"+str(name1)+"_"+str(name2)+".txt")
+	self.SetGradBoostOption(name1, opt1[index])
+	self.SetGradBoostOption(name2, opt2[index])
+	self.PrintOpts()
+
+
+  def PrintOutput(self,train):
+	fig = plt.figure()
+	x = self.X_Array[::30]
+	y = train.predict(x)
+	plt.scatter(x[:,0], x[:,1], c=y, cmap='autumn', alpha = 1)
+	plt.colorbar()
+	plt.text(-4,6,self.ReturnOpts(),verticalalignment='top', horizontalalignment='left', fontsize=9)
+	plt.show()
+	fig.savefig("output.pdf")
+
+
+  def ReturnOpts(self):
+	gbo='learning_rate='+str(self.learning_rate)+', n_estimators='+str(self.n_estimators)+', max_depth='+str(self.max_depth)+', random_state='+str(self.random_state)+', loss='+str(self.loss)+',\nsubsample='+str(self.subsample)+', min_samples_split='+str(self.min_samples_split)+', min_samples_leaf='+str(self.min_samples_leaf)+', min_weight_fraction_leaf='+str(self.min_weight_fraction_leaf)+', \ninit='+str(self.init)+', max_features='+str(self.max_features)+', verbose='+str(self.verbose)+', max_leaf_nodes='+str(self.max_leaf_nodes)+', warm_start='+str(self.warm_start)+', presort='+str(self.presort)
+	return gbo

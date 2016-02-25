@@ -1,5 +1,5 @@
 
-
+#import sklearn
 import ROOT
 import math
 import sys
@@ -186,7 +186,7 @@ class Trainer:
         c1.SaveAs("Signal_07.pdf")
         
         outstr='ROC='+str(rocintegral)+'   ROC_tr='+str(rocintegral_training)+'   ksS='+str(ksS)+'   ksB'+str(ksB)+"\n"
-        logfile = open("log_roc.txt","a+")
+        logfile = open("gaussopt_log.txt","a+")
         logfile.write('######'+str(localtime())+'#####'+"\n"+"\n"+"\n"+str(self.best_variables)+"\n"+"\n"+str(self.bdtoptions)+"\n"+"\n"+outstr+'###############################################\n\n\n\n\n')
         logfile.close()
 
@@ -329,7 +329,7 @@ class Trainer:
   #shrin[k]=Shrin_min+k*((Shrin_max-Shrin_min)/Schritte)
   #ncuts[k]=nCuts_min+k*int((nCuts_max-nCuts_min)/Schritte)
 
-	for i in range(0,1):
+	for i in range(0,Schritte):
 	  ntrees[i]=NTrees_min+i*int((NTrees_max-NTrees_min)/Schritte)
 	  self.setBDTOption("NTrees="+str(NTrees_min+i*int((NTrees_max-NTrees_min)/Schritte)))
 	  #self.trainBDT([],"")
@@ -358,9 +358,9 @@ class Trainer:
 	      j1=nCuts_min+j*int((nCuts_max-nCuts_min)/Schritte)
 	      self.trainBDT([],"")
 	      ROC, ksS, ksB, ROCT = self.evaluateLastTraining()
-	      roc_hist.SetBinContent(k+1,j+1,ROC)
-	      roct_hist.SetBinContent(k+1,j+1,ROCT)
-	      ratio_hist.SetBinContent(k+1,j+1,(ROC/ROCT))
+	      roc_hist.SetBinContent(k+1,i+1,ROC)
+	      roct_hist.SetBinContent(k+1,i+1,ROCT)
+	      ratio_hist.SetBinContent(k+1,i+1,(ROC/ROCT))
 	      test_tmp=10*ROC+min(ksS,ksB)
 	      if test_tmp>test_max:
 		test_max=test_tmp
@@ -396,11 +396,11 @@ class Trainer:
 	  
 	roc_hist.Draw("colz")
 	c.Update()
-	c.SaveAs("ROC_hist.pdf(")
+	c.SaveAs("ROC_hist2.pdf(")
 	c.Clear()
 	roct_hist.Draw("colz")
 	c.Update()
-	c.SaveAs("ROC_hist.pdf")
+	c.SaveAs("ROC_hist2.pdf")
 	c.Clear()
 	diff_hist=roc_hist.Clone()
 	diff_hist.Add(roct_hist,-1)
@@ -412,13 +412,13 @@ class Trainer:
 	c.Clear()
 	diff_hist.Draw("colz")
 	c.Update()
-	c.SaveAs("ROC_hist.pdf")
+	c.SaveAs("ROC_hist2.pdf")
 	c.Clear()
 	c.Update()
 	c.Clear()
 	ratio_hist.Draw("colz")
 	c.Update()
-	c.SaveAs("ROC_hist.pdf)")
+	c.SaveAs("ROC_hist2.pdf)")
 	c.Clear()
 	  
 	#outstr="bestes NTrees=" + str(best_NT) + "beste Shrinkage=" + str(best_Sh) + "beste nCuts=" + str(best_nC)+"\n"+str(nt1)+"      "+str(nt2)+"   "+str(sh1)+"         "+str(sh2)+"   "+str(nc1)+"       "+str(nc2)+"\n"
