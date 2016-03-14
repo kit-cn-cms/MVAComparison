@@ -14,12 +14,14 @@ addtional_variables=["BDTOhio_v2_input_h0",
                      "BDTOhio_v2_input_h1"
                      ]
 
+
+
 #samples have a name, a color, a path, and a selection (not implemented yet for training)
 #only the path is really relevant atm
 cat='6j4t'
-signal_test=Sample('t#bar{t}H test',ROOT.kBlue,'/nfs/dust/cms/user/pkraemer/MVAComparison/2D_Gauss.root','') 
+signal_test=Sample('t#bar{t}H test',ROOT.kBlue,'/nfs/dust/cms/user/pkraemer/MVAComparison/2D_test.root','') 
 signal_train=Sample('t#bar{t}H training',ROOT.kGreen,'/nfs/dust/cms/user/pkraemer/MVAComparison/2D_Gauss.root','')
-background_test=Sample('t#bar{t} test',ROOT.kRed+1,'/nfs/dust/cms/user/pkraemer/MVAComparison/2D_Gauss.root','')
+background_test=Sample('t#bar{t} test',ROOT.kRed+1,'/nfs/dust/cms/user/pkraemer/MVAComparison/2D_test.root','')
 background_train=Sample('t#bar{t} training',ROOT.kRed-1,'/nfs/dust/cms/user/pkraemer/MVAComparison/2D_Gauss.root','')
 trainer=Trainer(variables,addtional_variables)
 
@@ -58,11 +60,13 @@ trainer.setBDTOption("MaxDepth=2")
 #trainer.optimizeOption('Shrinkage')
 #trainer.optimizeOption('nCuts')
 
-trainer.suche(1000, 2000, 0.01, 0.3, 50, 50, 2)
+#trainer.suche(1000, 2000, 0.01, 0.3, 50, 50, 2)
 #nt3,nt4,sh3,sh4,nc3,nc4 = trainer.suche(nt1,nt2,sh1,sh2,nc1,nc2,2)
 
 print trainer.best_variables
 trainer.trainBDT(variables)
+trainer.testBDT(variables)
+#trainer.PrintCanvases()
 
 t2=clock()
 

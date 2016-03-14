@@ -18,7 +18,7 @@ void gausstree(){
 
    TRandom3 *r = new TRandom3;
 
-   TFile *f = new TFile("2D_Gauss.root","recreate");
+   TFile *f = new TFile("2D_test.root","recreate");
    cout<<"test"<<endl;
    TTree *S = new TTree("S","Signal_Tree");
    cout<<"test"<<endl;
@@ -39,7 +39,7 @@ void gausstree(){
    //while(!fp.eof()){
 //	fscanf(fp, "%lf:%lf:%lf:%lf", &xs, &ys, &xb, &yb);
 
-   for(int i=0; i<=10000; i++){
+   for(int i=0; i<=299; i++){
    cout<<"test"<<endl;
 	xs = r->Gaus(0,1);
    cout<<"test5"<<xs<<endl;

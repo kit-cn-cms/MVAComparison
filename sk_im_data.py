@@ -9,21 +9,29 @@ variables=["X","Y"]
 DATA=data(variables)
 DATA.SetSPath('/nfs/dust/cms/user/pkraemer/MVAComparison/2D_Gauss.root')
 DATA.SetBPath('/nfs/dust/cms/user/pkraemer/MVAComparison/2D_Gauss.root')
+DATA.SetStestPath('/nfs/dust/cms/user/pkraemer/MVAComparison/2D_test.root')
+DATA.SetBtestPath('/nfs/dust/cms/user/pkraemer/MVAComparison/2D_test.root')
 DATA.SetSTreename("S")
 DATA.SetBTreename("B")
 
 
 DATA.SetGradBoostOption('n_estimators', 2000)
 DATA.SetGradBoostOption("max_depth", 3)
-DATA.SetGradBoostOption("learning_rate", 0.5)
+DATA.SetGradBoostOption("learning_rate", 0.05)
 #DATA.SetGradBoostOption("min_samples_leaf", 250)
 
 DATA.Convert()
+#print DATA.X_Array
 #DATA.PrintLog()
 
 train1=DATA.Classify()
-DATA.PrintOutput(train1)
+#DATA.CompareTrainTest(train1)
+
+#print "classified"
+DATA.Output(train1)
 #DATA.WriteSignalTree()
+
+#DATA.TestGradBoostOptions(1000,2000,0.01,0.1,2)
 
 #DATA.TestTwoOptions("min_samples_split", "min_samples_leaf", 10, 90, 10, 30, 3)
 

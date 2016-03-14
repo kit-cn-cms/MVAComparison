@@ -19,6 +19,27 @@ from sklearn.metrics import roc_curve, auc
 import matplotlib.pyplot as plt
 #from root_numpy import tree2rec
 import pickle
+from matplotlib.backends.backend_pdf import PdfPages
+
+
+def frange(start, stop, step):
+	l=array('f',[])
+	i=start
+	j=start
+	trigger=array('f',[])
+	trigger=np.arange(start,stop,step)
+	print ((stop-start)/step)
+	for i in trigger:
+		i+=step
+		print i
+		for j in trigger:
+			j+=step
+			print str(j) + '\n'
+			l = np.concatenate(((l),([i,j])))
+		#print l
+	a=np.reshape(l,((len(l)/2),2))
+	return a
+
 
 class data:
   def __init__(self, variables):
@@ -28,8 +49,12 @@ class data:
 	self.X_Array=[]
 	self.Y_Array=[]
 	self.W_Array=[]
+	self.test_X=[]
+	self.test_y=[]
 	self.SPath='/nfs/dust/cms/user/pkraemer/trees/ttH_nominal.root'
+	self.StestPath='/nfs/dust/cms/user/pkraemer/trees/ttH_nominal.root'
 	self.BPath='/nfs/dust/cms/user/pkraemer/trees/ttbar_nominal.root'
+	self.BtestPath='/nfs/dust/cms/user/pkraemer/trees/ttbar_nominal.root'
 	self.variables=variables
 	self.weights='1.'
 	#self.GradBoostOptions="learning_rate=0.1, n_estimators=100, max_depth=3, random_state=0"
@@ -58,7 +83,7 @@ class data:
 	self.ROC_fig = plt.figure()
 	self.ROC_Curve=[[],[],[]]
 	self.logfilename="log.txt"
-
+	self.listoffigures=[]
 
 
 
@@ -70,6 +95,12 @@ class data:
 
   def SetBPath(self, BPATH=''):
 	self.BPath=BPATH
+
+  def SetStestPath(self,SPATH=''):
+	self.StestPath=SPATH
+
+  def SetBtestPath(self, BPATH=''):
+	self.BtestPath=BPATH
 
   def SetBTreename(self, TREENAME=''):
 	self.Btreename=TREENAME
@@ -97,6 +128,15 @@ class data:
 	#self.W_Array = w_train
 	self.train_Background=train_Background
 	self.train_Signal=train_Signal
+
+#and testtree
+	test_Signal=root2array(self.StestPath, self.Streename, self.variables)
+	test_Background=root2array(self.BtestPath, self.Btreename, self.variables)
+	test_Signal=rec2array(test_Signal)
+	test_Background=rec2array(test_Background)
+	self.test_X=np.concatenate((test_Signal,test_Background))
+	self.test_y=np.concatenate((np.ones(test_Signal.shape[0]), np.zeros(test_Background.shape[0])))
+
 
   def SetGradBoostOption(self, option, value):
 	if option=='n_estimators':
@@ -154,13 +194,14 @@ class data:
 	train = GradientBoostingClassifier(learning_rate=self.learning_rate, n_estimators=self.n_estimators, max_depth=self.max_depth, random_state=self.random_state, loss=self.loss, subsample=self.subsample, min_samples_split=self.min_samples_split, min_samples_leaf=self.min_samples_leaf, min_weight_fraction_leaf=self.min_weight_fraction_leaf, init=self.init, max_features=self.max_features, verbose=self.verbose, max_leaf_nodes=self.max_leaf_nodes, warm_start=self.warm_start, presort=self.presort).fit(self.X_Array,self.Y_Array)
 	self.PrintLog(train)
 	self.WriteOutTree(train)
+        print "tree written"
 	return train
 
 #  def TestDefiance(self,train):
 #	test_deviance = np.zeros((params['n_estimators'],), dtype=np.float64)
 #	for i, y_pred in enumerate(train.staged_decision_function(self.X_Array)):
-#        # clf.loss_ assumes that y_test[i] in {0, 1}
-#		test_deviance[i] = clf.loss_(Y_Array, y_pred)
+#        # train.loss_ assumes that y_test[i] in {0, 1}
+#		test_deviance[i] = train.loss_(Y_Array, y_pred)
 
   def Score(self,train):
 	return train.score(self.X_Array, self.Y_Array)
@@ -201,6 +242,7 @@ class data:
 	bX_trained.dtype = [('training_output', np.float64)]
 	array2root(by_trained, self.outname, "Background_train")
 	array2root(bX_trained, self.outname, "Background_train")
+        SKout.Close()
 
   def ROCInt(self,train):
 	return roc_auc_score(self.Y_Array, train.decision_function(self.X_Array))
@@ -246,6 +288,7 @@ class data:
 	estimators=[]
 	rate=[]
 	rocint=[]
+	scatterplots=[]
 
 	for i in range(steps):
 		self.SetGradBoostOption('n_estimators', (minestimators+(i*((maxestimators-minestimators)/steps))))
@@ -255,9 +298,18 @@ class data:
 			estimators.append((minestimators+(i*((maxestimators-minestimators)/steps))))
 			rate.append((minlearning_rate+(k*((maxlearning_rate-minlearning_rate)/steps))))
 			train=self.Classify()
-			self.PrintOutput()
+			#self.PrintOutput()
 			rocint.append(self.ROCInt(train))
+			#self.PrintOutput(train)
 			#print str(rocint)
+			scatterplots.append(self.PrintOutput(train))
+
+	with PdfPages('scatterplots.pdf') as pdf:
+		for plot in scatterplots:
+	#	with PdfPages('multipage.pdf') as pdf:
+			pdf.savefig(plot)
+			#print "plot"
+			#plt.close()
 
 	rocint = np.array(rocint)
 	estimators = np.array(estimators)
@@ -271,7 +323,7 @@ class data:
 	plt.ylabel("learning_rate")
 	plt.yticks(rate,rate)
 	plt.title("ROC integrals")
-	plt.show()
+	#plt.show()
 	fig.savefig("bestROC.pdf")
 
 	index=np.argmax(rocint)
@@ -324,15 +376,86 @@ class data:
 
   def PrintOutput(self,train):
 	fig = plt.figure()
-	x = self.X_Array[::30]
+	x = self.test_X
 	y = train.predict(x)
 	plt.scatter(x[:,0], x[:,1], c=y, cmap='autumn', alpha = 1)
 	plt.colorbar()
-	plt.text(-4,6,self.ReturnOpts(),verticalalignment='top', horizontalalignment='left', fontsize=9)
-	plt.show()
-	fig.savefig("output.pdf")
+	plt.title('BDT Output for Testtree')
+	plt.text(-4.1,4.9,self.ReturnOpts(),verticalalignment='top', horizontalalignment='left', fontsize=7)
+	#fig.savefig("output.pdf")
+	self.listoffigures.append(fig)
+	return fig
 
+  def Output(self,train):
+	fig = plt.figure()
+	#bin = 50
+	x = frange(-5.,5.,0.1)
+	print x
+	print '---------------------------------------\n'
+	b= x[:,0]
+	a= x[:,1]
+	bin = np.sqrt(len(a))
+	print a
+	print '---------------------------------------\n'
+	print bin
+	z = train.decision_function(x)
+	print '---------------------------------------\n'
+	print z
+	plt.hist2d(a, b, bins=bin, weights=z)
+	plt.colorbar()
+	plt.title('BDT Output')
+	plt.text(-4.8,4.9,self.ReturnOpts(),verticalalignment='top', horizontalalignment='left', fontsize=7)	
+	fig.savefig("BDToutput.pdf")
+	self.listoffigures.append(fig)
+	return fig
 
   def ReturnOpts(self):
 	gbo='learning_rate='+str(self.learning_rate)+', n_estimators='+str(self.n_estimators)+', max_depth='+str(self.max_depth)+', random_state='+str(self.random_state)+', loss='+str(self.loss)+',\nsubsample='+str(self.subsample)+', min_samples_split='+str(self.min_samples_split)+', min_samples_leaf='+str(self.min_samples_leaf)+', min_weight_fraction_leaf='+str(self.min_weight_fraction_leaf)+', \ninit='+str(self.init)+', max_features='+str(self.max_features)+', verbose='+str(self.verbose)+', max_leaf_nodes='+str(self.max_leaf_nodes)+', warm_start='+str(self.warm_start)+', presort='+str(self.presort)
 	return gbo
+
+
+
+  def CompareTrainTest(self, train, bins=30):
+	decisions = []
+	for X,y in ((self.X_Array, self.Y_Array), (self.test_X, self.test_y)):
+	        d1 = train.decision_function(X[y>0.5]).ravel()
+	        d2 = train.decision_function(X[y<0.5]).ravel()
+	        decisions += [d1, d2]
+        
+	low = min(np.min(d) for d in decisions)
+	high = max(np.max(d) for d in decisions)
+	low_high = (low,high)
+
+	fig = plt.figure()
+    
+	plt.hist(decisions[0],
+             color='r', alpha=0.5, range=low_high, bins=bins,
+             histtype='stepfilled', normed=True,
+             label='S (train)')
+	plt.hist(decisions[1],
+             color='b', alpha=0.5, range=low_high, bins=bins,
+             histtype='stepfilled', normed=True,
+             label='B (train)')
+
+	hist, bins = np.histogram(decisions[2],
+                              bins=bins, range=low_high, normed=True)
+	scale = len(decisions[2]) / sum(hist)
+	err = np.sqrt(hist * scale) / scale
+   
+	width = (bins[1] - bins[0])
+	center = (bins[:-1] + bins[1:]) / 2
+	plt.errorbar(center, hist, yerr=err, fmt='o', c='r', label='S (test)')
+    
+	hist, bins = np.histogram(decisions[3],
+                              bins=bins, range=low_high, normed=True)
+	scale = len(decisions[2]) / sum(hist)
+	err = np.sqrt(hist * scale) / scale
+
+	plt.errorbar(center, hist, yerr=err, fmt='o', c='b', label='B (test)')
+
+	plt.xlabel("BDT output")
+	plt.ylabel("Arbitrary units")
+	plt.legend(loc='best')
+
+	fig.savefig("bdt_output.pdf")
+	return fig

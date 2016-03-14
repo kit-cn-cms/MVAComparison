@@ -17,11 +17,12 @@ class Trainer:
         self.best_variables=variables
         self.variables_to_try=variables_to_try
         self.verbose=verbose
-
+	self.pdffile="printout.pdf"
         self.ntrainings=0
         self.verbose=verbose
         self.stopwatch=ROOT.TStopwatch()
         self.weightfile='weights/weights.xml'
+	self.trainedweight='weights/weights.xml'
         weightpath='/'.join((self.weightfile.split('/'))[:-1])
         if not os.path.exists( weightpath ):
             os.makedirs(weightpath)
@@ -29,7 +30,7 @@ class Trainer:
         outfilepath='/'.join((self.rootfile.split('/'))[:-1])
         if not os.path.exists( outfilepath ):
             os.makedirs(outfilepath)
-
+	self.PlotSaver = []			#list to save canvases
         self.Streename='S'
 	self.Btreename='B'
         self.weightexpression='1'
@@ -148,6 +149,7 @@ class Trainer:
         weightfile=self.weightfile
         dt=datetime.datetime.now().strftime("%Y_%m%d_%H%M%S")
         weightfile=weightfile.replace('.xml','_'+dt+'.xml')
+	self.trainedweight=weightfile
         call(['cp','weights/TMVAClassification_BDTG.weights.xml',weightfile])
         movedfile=self.rootfile
         movedfile=movedfile.replace('.root','_'+dt+'.root')
@@ -429,3 +431,213 @@ class Trainer:
 	#print "bestes NTrees=", best_NT, "beste Shrinkage=", best_Sh,"beste nCuts=", best_nC	
 	#return nt1,nt2,sh1,sh2,nc1,nc2
        
+
+
+	#tests the BDT with a reader
+    def testBDT(self,variables_=[],bdtoptions_="",factoryoptions_=""):
+	ROOT.gStyle.SetOptStat(0)	#no legends in plots
+	self.PlotSaver.append(ROOT.TCanvas('c'+str(len(self.PlotSaver)),'c'+str(len(self.PlotSaver)), 800, 600))
+        if not hasattr(self, 'signal_train') or not hasattr(self, 'signal_test') or not hasattr(self, 'background_train')  or not hasattr(self, 'background_test'):
+            print 'set training and test samples first'
+            return
+
+        newbdtoptions=replaceOptions(bdtoptions_,self.bdtoptions)
+        newoptions=replaceOptions(factoryoptions_,self.factoryoptions)
+        reader = ROOT.TMVA.Reader(newoptions)
+        # add variables	
+	varx = array('f',[0])
+	vary = array('f',[0])
+	localvar = [varx, vary]
+        variables=variables_
+        if len(variables)==0:
+            variables = self.best_variables
+        for i in range(len(variables)):
+	    #localvar.append(None)
+            reader.AddVariable(variables[i],localvar[i])
+        # add signal and background trees
+        input_test_S = ROOT.TFile( self.signal_test.path )
+        input_test_B = ROOT.TFile( self.background_test.path )          
+        test_treeS = input_test_S.Get(self.Streename)
+        test_treeB = input_test_B.Get(self.Btreename)
+
+        #signalWeight     = 1.
+        #backgroundWeight = 1.
+        #reader.AddSignalTree    ( test_treeS, signalWeight )
+        #reader.AddBackgroundTree( test_treeB, backgroundWeight)
+        #reader.SetWeightExpression(self.weightexpression)
+        reader.BookMVA( "BDTG", self.trainedweight)
+
+	mvaValue = reader.EvaluateMVA( "BDTG" )
+	print mvaValue
+
+	# create a new 2D histogram with fine binning
+	histo2 = ROOT.TH2F("histo2","",200,-5,5,200,-5,5)
+	 
+	# loop over the bins of a 2D histogram
+	for i in range(1,histo2.GetNbinsX() + 1):
+	    for j in range(1,histo2.GetNbinsY() + 1):
+         
+        	# find the bin center coordinates
+	        varx[0] = histo2.GetXaxis().GetBinCenter(i)
+	        vary[0] = histo2.GetYaxis().GetBinCenter(j)
+	         
+	        # calculate the value of the classifier
+	        # function at the given coordinate
+	        bdtOutput = reader.EvaluateMVA("BDTG")
+	         
+	        # set the bin content equal to the classifier output
+	        histo2.SetBinContent(i,j,bdtOutput)
+	 
+	#self.PlotSaver.append(ROOT.TCanvas())
+	histo2.SetTitle("BDT Output")
+	histo2.Draw("colz")
+	 
+	# draw sigma contours around means
+	for mean, color in (
+	    ((0,0), ROOT.kRed), # signal
+	    ((1,1), ROOT.kBlue), # background
+	    ):
+	     
+	    # draw contours at 1 and 2 sigmas
+	    for numSigmas in (1,2):
+	        circle = ROOT.TEllipse(mean[0], mean[1], numSigmas)
+	        circle.SetFillStyle(0)
+	        circle.SetLineColor(color)
+	        circle.SetLineWidth(2)
+	        circle.Draw()
+	        self.PlotSaver.append(circle)
+	 
+	ROOT.gPad.Modified()
+
+
+	#Scatterplots with Signal or Background...
+	ROOT.gStyle.SetOptStat()
+	self.PlotSaver.append(ROOT.TCanvas('c'+str(len(self.PlotSaver)),'c'+str(len(self.PlotSaver)), 800, 600))
+	#c1.Clear()
+	ROOT.gROOT.SetBatch(True)
+	f=ROOT.TFile("2D_test.root")
+
+	S=f.Get("S")
+	B=f.Get("B")
+
+	#S.Scan()
+
+	#LS=S.GetListOfBranches()
+	#LB=B.GetListOfBranches()
+
+	ns=0
+	nb=0
+	for Row in S:
+		ns+=1
+	for Row in B:
+		nb+=1
+	n=ns+nb
+
+	T = ROOT.TTree('T','Tree with BDToutput')
+	sx = array( 'f' , [0] )
+	sy = array( 'f' , [0] )
+	sz = array( 'i' , [0] )
+	T.Branch('X', sx, 'X/F')
+	T.Branch('Y', sy, 'Y/F')
+	T.Branch('Z', sz, 'Z/I')
+
+	H2 = ROOT.TH2F('H2','H2', 100, -5, 5, 100, -5, 5)
+	H3 = ROOT.TH2F('H3','H3', 100, -5, 5, 100, -5, 5)
+
+	#Evaluate BDT with Testtree
+	for Row in S:
+		#print S.X
+		varx[0]=S.X
+		sx[0]=S.X
+		vary[0]=S.Y
+		sy[0]=S.Y
+		z = reader.EvaluateMVA( "BDTG" )
+		#print z
+		if z<0:
+			sz[0]=-1
+			H2.Fill(sx[0],sy[0],sz[0])
+		else:
+			sz[0]=1
+			H3.Fill(sx[0],sy[0],sz[0])
+		print 'BDT Output=   '+str(sz[0])
+		T.Fill()
+	for Row in B:
+		#print S.X
+		varx[0]=B.X
+		sx[0]=B.X
+		vary[0]=B.Y
+		sy[0]=B.Y
+		z = reader.EvaluateMVA( "BDTG" )
+		if z<0:
+			sz[0]=-1
+			H2.Fill(sx[0],sy[0],sz[0])
+		else:
+			sz[0]=1
+			H3.Fill(sx[0],sy[0],sz[0])
+		T.Fill()
+		print 'BDT Output=   '+str(sz[0])
+	#print sx
+	#print sy
+	#print sz
+	#T.Scan()	
+
+	#hist = ROOT.TH2F('hist', 'BDT output scatterplot', 100, -5, 5, 100, -5, 5)
+	#hist.SetMarkerColor(ROOT.kRed)
+	#hist.SetMarkerStyle(8)
+	#hist.SetMarkerSize(0.6)
+	#hist.Draw()
+	#hist2 = ROOT.TH2F('hist2', 'BDT output scatterplot', 100, -5, 5, 100, -5, 5)
+	#hist2.SetMarkerColor(ROOT.kBlue)
+	#hist2.SetMarkerStyle(8)
+	#hist2.SetMarkerSize(0.6)
+	#hist2.Draw('SAME')
+
+	ROOT.gPad.Modified()
+
+	#plot (Test-) Tree (Scatterplot)
+	T.SetMarkerStyle(8)
+	T.SetMarkerColor(ROOT.kRed)
+	T.Draw('X:Y', 'Z==1', 'SCAT')
+	T.SetMarkerColor(ROOT.kBlue)
+	T.Draw('X:Y', 'Z==-1', 'SCAT SAME')
+	self.PlotSaver[-1].Update()
+	self.PlotSaver[-1].SaveAs("scat1.pdf")
+	
+
+
+	# plot 2D-Histos (should be same Plot as plot Tree)
+
+
+
+	self.PlotSaver.append(ROOT.TCanvas('c'+str(len(self.PlotSaver)),'c'+str(len(self.PlotSaver)), 800, 600))
+	print 'canvas appended'
+	self.PlotSaver[-1].Clear()
+	#H2.SetMarkerColor(ROOT.kRed)
+	#H2.SetMarkerStyle(8)
+	#H2.SetMarkerSize(0.5)
+	H2.Draw()
+	#H3.SetMarkerColor(ROOT.kBlue)
+	#H3.SetMarkerStyle(8)
+	#H3.SetMarkerSize(0.5)
+	H3.Draw('same')
+	self.PlotSaver[-1].Update()
+	self.PlotSaver[-1].SaveAs('scat2.pdf')
+
+	ROOT.gPad.Modified()
+
+	#Print Canvases
+	self.PrintCanvases()
+
+
+    def PrintCanvases(self):
+
+	pdffile=self.pdffile
+        dt=datetime.datetime.now().strftime("%Y_%m%d_%H%M%S")
+        pdf=pdffile.replace('.pdf','_'+dt+'.pdf')
+
+	c=ROOT.TCanvas("c","c",800,600)
+	c.Print(pdf+"[")
+	for can in self.PlotSaver:
+		can.Print(pdf)
+		print can
+	c.Print(pdf+"]")
