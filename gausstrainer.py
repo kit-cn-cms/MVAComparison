@@ -12,6 +12,8 @@ from plotutils import *
 from mvautils import *
 from time import *
 
+ROOT.gDirectory.cd('PyROOT:/')
+
 class Trainer:
     def __init__(self, variables, variables_to_try=[], verbose=False):
         self.best_variables=variables
@@ -30,7 +32,7 @@ class Trainer:
         outfilepath='/'.join((self.rootfile.split('/'))[:-1])
         if not os.path.exists( outfilepath ):
             os.makedirs(outfilepath)
-	self.PlotSaver = []			#list to save canvases
+	self.PlotFile='TMVA_PlotFile.pdf'
         self.Streename='S'
 	self.Btreename='B'
         self.weightexpression='1'
@@ -39,6 +41,21 @@ class Trainer:
         self.factoryoptions="V:!Silent:Color:DrawProgressBar:AnalysisType=Classification:Transformations=I;D;P;G,D"
         self.bdtoptions= "!H:!V:NTrees=1000:MinNodeSize=2.5%:BoostType=Grad:Shrinkage=0.10:!UseBaggedBoost:BaggedSampleFraction=0.6:nCuts=20:MaxDepth=2:NegWeightTreatment=IgnoreNegWeightsInTraining"     
         self.setVerbose(verbose)
+
+
+    def SetPlotFile(self):
+        dt=datetime.datetime.now().strftime("%Y_%m%d_%H%M%S")
+	self.PlotFile='TMVA_PlotFile_'+dt+'.pdf'
+
+    def OpenPDF(self):
+	c=ROOT.TCanvas('c','c',800,640)
+	c.Print(self.PlotFile+'[')
+	c.Close()
+
+    def ClosePDF(self):
+	c=ROOT.TCanvas('c','c',800,640)
+	c.Print(self.PlotFile+']')
+	c.Close()
 
     def setVerbose(self,v=True):
         self.verbose=v
@@ -436,7 +453,8 @@ class Trainer:
 	#tests the BDT with a reader
     def testBDT(self,variables_=[],bdtoptions_="",factoryoptions_=""):
 	ROOT.gStyle.SetOptStat(0)	#no legends in plots
-	self.PlotSaver.append(ROOT.TCanvas('c'+str(len(self.PlotSaver)),'c'+str(len(self.PlotSaver)), 800, 600))
+	c1=ROOT.TCanvas('c1', 'c1', 800, 640)
+	#self.PlotSaver.append(ROOT.TCanvas('c'+str(len(self.PlotSaver)),'c'+str(len(self.PlotSaver)), 800, 600))
         if not hasattr(self, 'signal_train') or not hasattr(self, 'signal_test') or not hasattr(self, 'background_train')  or not hasattr(self, 'background_test'):
             print 'set training and test samples first'
             return
@@ -468,7 +486,7 @@ class Trainer:
         reader.BookMVA( "BDTG", self.trainedweight)
 
 	mvaValue = reader.EvaluateMVA( "BDTG" )
-	print mvaValue
+	#print mvaValue
 
 	# create a new 2D histogram with fine binning
 	histo2 = ROOT.TH2F("histo2","",200,-5,5,200,-5,5)
@@ -489,41 +507,37 @@ class Trainer:
 	        histo2.SetBinContent(i,j,bdtOutput)
 	 
 	#self.PlotSaver.append(ROOT.TCanvas())
-	histo2.SetTitle("BDT Output")
+	histo2.SetTitle("BDT prediction")
 	histo2.Draw("colz")
 	 
 	# draw sigma contours around means
-	for mean, color in (
-	    ((0,0), ROOT.kRed), # signal
-	    ((1,1), ROOT.kBlue), # background
-	    ):
+#	for mean, color in (
+#	    ((0,0), ROOT.kRed), # signal
+#	    ((1,1), ROOT.kBlue), # background
+#	    ):
 	     
 	    # draw contours at 1 and 2 sigmas
-	    for numSigmas in (1,2):
-	        circle = ROOT.TEllipse(mean[0], mean[1], numSigmas)
-	        circle.SetFillStyle(0)
-	        circle.SetLineColor(color)
-	        circle.SetLineWidth(2)
-	        circle.Draw()
-	        self.PlotSaver.append(circle)
+#	    for numSigmas in (1,2):
+#	        circle = ROOT.TEllipse(mean[0], mean[1], numSigmas)
+#	        circle.SetFillStyle(0)
+#	        circle.SetLineColor(color)
+#	        circle.SetLineWidth(2)
+#	        circle.Draw()
+#	        self.PlotSaver.append(circle)
 	 
-	ROOT.gPad.Modified()
+#	ROOT.gPad.Modified()
+	
+	c1.Print(self.PlotFile)
 
-
-	#Scatterplots with Signal or Background...
 	ROOT.gStyle.SetOptStat()
-	self.PlotSaver.append(ROOT.TCanvas('c'+str(len(self.PlotSaver)),'c'+str(len(self.PlotSaver)), 800, 600))
-	#c1.Clear()
+	c1.Clear()
+
+	c2=ROOT.TCanvas('c2', 'c2', 800, 800)
 	ROOT.gROOT.SetBatch(True)
-	f=ROOT.TFile("2D_test.root")
+	f=ROOT.TFile("2D_test_scat.root")
 
 	S=f.Get("S")
 	B=f.Get("B")
-
-	#S.Scan()
-
-	#LS=S.GetListOfBranches()
-	#LB=B.GetListOfBranches()
 
 	ns=0
 	nb=0
@@ -533,6 +547,7 @@ class Trainer:
 		nb+=1
 	n=ns+nb
 
+	#create Tree with BDT output
 	T = ROOT.TTree('T','Tree with BDToutput')
 	sx = array( 'f' , [0] )
 	sy = array( 'f' , [0] )
@@ -541,8 +556,19 @@ class Trainer:
 	T.Branch('Y', sy, 'Y/F')
 	T.Branch('Z', sz, 'Z/I')
 
-	H2 = ROOT.TH2F('H2','H2', 100, -5, 5, 100, -5, 5)
-	H3 = ROOT.TH2F('H3','H3', 100, -5, 5, 100, -5, 5)
+	#create Histos
+	HS = ROOT.TH2F('HS','HS', 100, -3, 4, 100, -3, 4)
+	HB = ROOT.TH2F('HB','HB', 100, -3, 4, 100, -3, 4)
+	HWS = ROOT.TH2F('HWS','HWS', 100, -3, 4, 100, -3, 4)
+	HWB = ROOT.TH2F('HWB','HWB', 100, -3, 4, 100, -3, 4)
+	hxs = ROOT.TH1F('hxs','hxs', 100, -3, 4)
+	hys = ROOT.TH1F('hys','hys', 100, -3, 4)
+	hxb = ROOT.TH1F('hxb','hxb', 100, -3, 4)
+	hyb = ROOT.TH1F('hyb','hyb', 100, -3, 4)
+	hxws = ROOT.TH1F('hxws','hxws', 100, -3, 4)
+	hyws = ROOT.TH1F('hyws','hyws', 100, -3, 4)
+	hxwb = ROOT.TH1F('hxwb','hxwb', 100, -3, 4)
+	hywb = ROOT.TH1F('hywb','hywb', 100, -3, 4)
 
 	#Evaluate BDT with Testtree
 	for Row in S:
@@ -554,11 +580,15 @@ class Trainer:
 		z = reader.EvaluateMVA( "BDTG" )
 		#print z
 		if z<0:
-			sz[0]=-1
-			H2.Fill(sx[0],sy[0],sz[0])
+			sz[0]=-2
+			HWS.Fill(sx[0],sy[0])
+			hxws.Fill(sx[0])
+			hyws.Fill(sy[0])
 		else:
 			sz[0]=1
-			H3.Fill(sx[0],sy[0],sz[0])
+			HS.Fill(sx[0],sy[0])
+			hxs.Fill(sx[0])
+			hys.Fill(sy[0])
 		print 'BDT Output=   '+str(sz[0])
 		T.Fill()
 	for Row in B:
@@ -570,64 +600,79 @@ class Trainer:
 		z = reader.EvaluateMVA( "BDTG" )
 		if z<0:
 			sz[0]=-1
-			H2.Fill(sx[0],sy[0],sz[0])
+			HB.Fill(sx[0],sy[0])
+			hxb.Fill(sx[0])
+			hyb.Fill(sy[0])
 		else:
-			sz[0]=1
-			H3.Fill(sx[0],sy[0],sz[0])
+			sz[0]=-2
+			print sx[0], sy[0]
+			HWB.Fill(sx[0],sy[0])
+			hxwb.Fill(sx[0])
+			hywb.Fill(sy[0])
 		T.Fill()
 		print 'BDT Output=   '+str(sz[0])
-	#print sx
-	#print sy
-	#print sz
-	#T.Scan()	
-
-	#hist = ROOT.TH2F('hist', 'BDT output scatterplot', 100, -5, 5, 100, -5, 5)
-	#hist.SetMarkerColor(ROOT.kRed)
-	#hist.SetMarkerStyle(8)
-	#hist.SetMarkerSize(0.6)
-	#hist.Draw()
-	#hist2 = ROOT.TH2F('hist2', 'BDT output scatterplot', 100, -5, 5, 100, -5, 5)
-	#hist2.SetMarkerColor(ROOT.kBlue)
-	#hist2.SetMarkerStyle(8)
-	#hist2.SetMarkerSize(0.6)
-	#hist2.Draw('SAME')
-
-	ROOT.gPad.Modified()
 
 	#plot (Test-) Tree (Scatterplot)
+	####----doesn't work, but Histos HS/HB/HWS/HWB plot the same----####
 	T.SetMarkerStyle(8)
 	T.SetMarkerColor(ROOT.kRed)
-	T.Draw('X:Y', 'Z==1', 'SCAT')
+	T.Draw('X:Y', 'Z==-2', 'SCAT')
+	T.SetMarkerColor(ROOT.kYellow+1)
+	T.Draw('X:Y', 'Z==1', 'SCAT SAME')
 	T.SetMarkerColor(ROOT.kBlue)
+	T.Draw('X:Y', 'Z==2', 'SCAT SAME')
+	T.SetMarkerColor(ROOT.kYellow+1)
 	T.Draw('X:Y', 'Z==-1', 'SCAT SAME')
-	self.PlotSaver[-1].Update()
-	self.PlotSaver[-1].SaveAs("scat1.pdf")
+	c2.SaveAs(self.PlotFile)
+	c2.Clear()
+
+	#Print Scatterplot of Testevents with correct/wrong classified Signal/Background
+	cnew = ROOT.TCanvas('cnew', 'cnew', 800, 640)
+	cnew.SetLeftMargin(0.1)
+	HWS.SetMarkerColor(ROOT.kRed)
+	HWS.SetMarkerStyle(8)
+	HWS.SetMarkerSize(0.5)
+	HWS.Draw()
+	HWB.SetMarkerColor(ROOT.kBlue)
+	HWB.SetMarkerStyle(8)
+	HWB.SetMarkerSize(0.5)
+	HWB.Draw('same')
+	HS.SetMarkerColor(ROOT.kYellow+1)
+	HS.SetMarkerStyle(8)
+	HS.SetMarkerSize(0.5)
+	HS.Draw('same')
+	HB.SetMarkerColor(ROOT.kCyan)
+	HB.SetMarkerStyle(8)
+	HB.SetMarkerSize(0.5)
+	HB.Draw('same')
+	cnew.Print(self.PlotFile)
+	cnew.Close()
 	
+	#Print Histo for var 'X' with correct/wrong classified Signal/Background
+	cx = ROOT.TCanvas('cx', 'cx', 800, 640)
+	hxs.SetLineColor(ROOT.kYellow + 1)
+	hxs.Draw("hist")
+	hxb.SetLineColor(ROOT.kCyan)
+	hxb.Draw("SAME HIST")
+	hxws.SetLineColor(ROOT.kRed)
+	hxws.Draw("SAME HIST")
+	hxwb.SetLineColor(ROOT.kBlue)
+	hxwb.Draw("SAME HIST")
+	cx.Print(self.PlotFile)
+	cx.Close()
 
-
-	# plot 2D-Histos (should be same Plot as plot Tree)
-
-
-
-	self.PlotSaver.append(ROOT.TCanvas('c'+str(len(self.PlotSaver)),'c'+str(len(self.PlotSaver)), 800, 600))
-	print 'canvas appended'
-	self.PlotSaver[-1].Clear()
-	#H2.SetMarkerColor(ROOT.kRed)
-	#H2.SetMarkerStyle(8)
-	#H2.SetMarkerSize(0.5)
-	H2.Draw()
-	#H3.SetMarkerColor(ROOT.kBlue)
-	#H3.SetMarkerStyle(8)
-	#H3.SetMarkerSize(0.5)
-	H3.Draw('same')
-	self.PlotSaver[-1].Update()
-	self.PlotSaver[-1].SaveAs('scat2.pdf')
-
-	ROOT.gPad.Modified()
-
-	#Print Canvases
-	self.PrintCanvases()
-
+	#Print Histo for var 'Y' with correct/wrong classified Signal/Background
+	cy = ROOT.TCanvas('cy', 'cy', 800, 640)
+	hys.SetLineColor(ROOT.kYellow + 1)
+	hys.Draw("hist")
+	hyb.SetLineColor(ROOT.kCyan)
+	hyb.Draw("SAME HIST")
+	hyws.SetLineColor(ROOT.kRed)
+	hyws.Draw("SAME HIST")
+	hywb.SetLineColor(ROOT.kBlue)
+	hywb.Draw("SAME HIST")
+	cy.Print(self.PlotFile)
+	cy.Close()
 
     def PrintCanvases(self):
 
@@ -641,3 +686,36 @@ class Trainer:
 		can.Print(pdf)
 		print can
 	c.Print(pdf+"]")
+
+    def PrintTrees(self):
+	c1 = ROOT.TCanvas('c1','c1',800,600)
+
+	f=ROOT.TFile("corr_train.root")
+
+	S=f.Get("S")
+	B=f.Get("B")
+
+	h = ROOT.TH2F('h','h',100, -4, 5, 100, -4, 5)
+
+	S.SetMarkerColor(ROOT.kRed)	
+	S.Draw('X:Y',"","SCAT")
+	B.SetMarkerColor(ROOT.kBlue)	
+	B.Draw('X:Y',"", 'SCAT SAME')
+
+	c1.Print('input_sample_scatter.pdf')
+
+	
+
+    def EvolveBDTs(self):
+	
+	NTreeslist=range(1,3)
+	#NTreeslist.append(100)
+	#NTreeslist.append(1000)
+	#NTreeslist.append(10000)
+	for NTree in NTreeslist:
+		self.setBDTOption("NTrees="+str(NTree))
+		self.trainBDT(self.best_variables)
+		self.testBDT(self.best_variables)
+
+
+####def
