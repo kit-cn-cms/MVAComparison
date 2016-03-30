@@ -52,7 +52,7 @@ trainer.setVerbose(True) # no output during BDT training and testing
 #trainer.optimizeOption('nCuts')
 #print "these are found to be the 8 best variables and best bdt and factory options"
 
-trainer.setBDTOption("NTrees=1500")
+trainer.setBDTOption("NTrees=1")
 trainer.setBDTOption("Shrinkage=0.05")
 #trainer.setBDTOption("nCuts=50")
 trainer.setBDTOption("MaxDepth=2")
@@ -60,7 +60,7 @@ trainer.setBDTOption("MaxDepth=2")
 #trainer.optimizeOption('Shrinkage')
 #trainer.optimizeOption('nCuts')
 
-#trainer.suche(1000, 2000, 0.01, 0.3, 50, 50, 2)
+#trainer.suche(1000, 2000, 0.01, 0.3, 50, 50, 50)
 #nt3,nt4,sh3,sh4,nc3,nc4 = trainer.suche(nt1,nt2,sh1,sh2,nc1,nc2,2)
 
 #print trainer.best_variables
@@ -71,7 +71,12 @@ trainer.setBDTOption("MaxDepth=2")
 
 trainer.SetPlotFile()
 trainer.OpenPDF()
-trainer.EvolveBDTs()
+trainer.trainBDT()
+rocintegral, ksS, ksB, rocintegral_training = trainer.evaluateLastTraining()
+#trainer.PlotOPTs(rocintegral, ksS, ksB, rocintegral_training)
+trainer.testBDT()
+#trainer.EvolveBDTs()
+#trainer.suche(1000, 2000, 0.01, 0.3, 50, 50, 50)
 trainer.ClosePDF()
 
 

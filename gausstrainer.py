@@ -376,6 +376,7 @@ class Trainer:
 	      self.setBDTOption("nCuts="+str(nCuts_min+j*int((nCuts_max-nCuts_min)/Schritte)))
 	      j1=nCuts_min+j*int((nCuts_max-nCuts_min)/Schritte)
 	      self.trainBDT([],"")
+	      self.testBST([],"")
 	      ROC, ksS, ksB, ROCT = self.evaluateLastTraining()
 	      roc_hist.SetBinContent(k+1,i+1,ROC)
 	      roct_hist.SetBinContent(k+1,i+1,ROCT)
@@ -416,6 +417,7 @@ class Trainer:
 	roc_hist.Draw("colz")
 	c.Update()
 	c.SaveAs("ROC_hist2.pdf(")
+	c.SaveAs(self.PlotFile)
 	c.Clear()
 	roct_hist.Draw("colz")
 	c.Update()
@@ -432,12 +434,14 @@ class Trainer:
 	diff_hist.Draw("colz")
 	c.Update()
 	c.SaveAs("ROC_hist2.pdf")
+	c.SaveAs(self.PlotFile)
 	c.Clear()
 	c.Update()
 	c.Clear()
 	ratio_hist.Draw("colz")
 	c.Update()
 	c.SaveAs("ROC_hist2.pdf)")
+	c.SaveAs(self.PlotFile)
 	c.Clear()
 	  
 	#outstr="bestes NTrees=" + str(best_NT) + "beste Shrinkage=" + str(best_Sh) + "beste nCuts=" + str(best_nC)+"\n"+str(nt1)+"      "+str(nt2)+"   "+str(sh1)+"         "+str(sh2)+"   "+str(nc1)+"       "+str(nc2)+"\n"
@@ -458,7 +462,7 @@ class Trainer:
         if not hasattr(self, 'signal_train') or not hasattr(self, 'signal_test') or not hasattr(self, 'background_train')  or not hasattr(self, 'background_test'):
             print 'set training and test samples first'
             return
-
+	c1.SetRightMargin(0.2)
         newbdtoptions=replaceOptions(bdtoptions_,self.bdtoptions)
         newoptions=replaceOptions(factoryoptions_,self.factoryoptions)
         reader = ROOT.TMVA.Reader(newoptions)
@@ -478,6 +482,9 @@ class Trainer:
         test_treeS = input_test_S.Get(self.Streename)
         test_treeB = input_test_B.Get(self.Btreename)
 
+
+
+
         #signalWeight     = 1.
         #backgroundWeight = 1.
         #reader.AddSignalTree    ( test_treeS, signalWeight )
@@ -487,9 +494,14 @@ class Trainer:
 
 	mvaValue = reader.EvaluateMVA( "BDTG" )
 	#print mvaValue
-
+	varx[0] = -1
+	vary[0] = 1
+	we = reader.EvaluateMVA("BDTG")
+	print we
 	# create a new 2D histogram with fine binning
 	histo2 = ROOT.TH2F("histo2","",200,-5,5,200,-5,5)
+	maxout=0
+	minout=0
 	 
 	# loop over the bins of a 2D histogram
 	for i in range(1,histo2.GetNbinsX() + 1):
@@ -502,7 +514,13 @@ class Trainer:
 	        # calculate the value of the classifier
 	        # function at the given coordinate
 	        bdtOutput = reader.EvaluateMVA("BDTG")
-	         
+
+		#get min max of bdtOutput for bdtOutput-Shape Histo
+		if bdtOutput>maxout:
+			maxout=bdtOutput
+		if bdtOutput<minout:
+	         	minout=bdtOutput
+
 	        # set the bin content equal to the classifier output
 	        histo2.SetBinContent(i,j,bdtOutput)
 	 
@@ -529,7 +547,7 @@ class Trainer:
 	
 	c1.Print(self.PlotFile)
 
-	ROOT.gStyle.SetOptStat()
+	ROOT.gStyle.SetOptStat(0)
 	c1.Clear()
 
 	c2=ROOT.TCanvas('c2', 'c2', 800, 800)
@@ -557,18 +575,20 @@ class Trainer:
 	T.Branch('Z', sz, 'Z/I')
 
 	#create Histos
-	HS = ROOT.TH2F('HS','HS', 100, -3, 4, 100, -3, 4)
-	HB = ROOT.TH2F('HB','HB', 100, -3, 4, 100, -3, 4)
-	HWS = ROOT.TH2F('HWS','HWS', 100, -3, 4, 100, -3, 4)
-	HWB = ROOT.TH2F('HWB','HWB', 100, -3, 4, 100, -3, 4)
-	hxs = ROOT.TH1F('hxs','hxs', 100, -3, 4)
-	hys = ROOT.TH1F('hys','hys', 100, -3, 4)
-	hxb = ROOT.TH1F('hxb','hxb', 100, -3, 4)
-	hyb = ROOT.TH1F('hyb','hyb', 100, -3, 4)
-	hxws = ROOT.TH1F('hxws','hxws', 100, -3, 4)
-	hyws = ROOT.TH1F('hyws','hyws', 100, -3, 4)
-	hxwb = ROOT.TH1F('hxwb','hxwb', 100, -3, 4)
-	hywb = ROOT.TH1F('hywb','hywb', 100, -3, 4)
+	HS = ROOT.TH2F('HS','HS', 100, -5, 5, 100, -5, 5)
+	HB = ROOT.TH2F('HB','HB', 100, -5, 5, 100, -5, 5)
+	HWS = ROOT.TH2F('HWS','HWS', 100, -5, 5, 100, -5, 5)
+	HWB = ROOT.TH2F('HWB','HWB', 100, -5, 5, 100, -5, 5)
+	hxs = ROOT.TH1F('hxs','hxs', 25, -3, 4)
+	hys = ROOT.TH1F('hys','hys', 25, -3, 4)
+	hxb = ROOT.TH1F('hxb','hxb', 25, -3, 4)
+	hyb = ROOT.TH1F('hyb','hyb', 25, -3, 4)
+	hxws = ROOT.TH1F('hxws','hxws', 25, -3, 4)
+	hyws = ROOT.TH1F('hyws','hyws', 25, -3, 4)
+	hxwb = ROOT.TH1F('hxwb','hxwb', 25, -3, 4)
+	hywb = ROOT.TH1F('hywb','hywb', 25, -3, 4)
+	histshapeS = ROOT.TH1F('histshapeS', 'histshapeS', 50 , minout-0.02, maxout+0.02)
+	histshapeB = ROOT.TH1F('histshapeB', 'histshapeB', 50 , minout-0.02, maxout+0.02)
 
 	#Evaluate BDT with Testtree
 	for Row in S:
@@ -578,7 +598,7 @@ class Trainer:
 		vary[0]=S.Y
 		sy[0]=S.Y
 		z = reader.EvaluateMVA( "BDTG" )
-		#print z
+		histshapeS.Fill(z)
 		if z<0:
 			sz[0]=-2
 			HWS.Fill(sx[0],sy[0])
@@ -589,7 +609,7 @@ class Trainer:
 			HS.Fill(sx[0],sy[0])
 			hxs.Fill(sx[0])
 			hys.Fill(sy[0])
-		print 'BDT Output=   '+str(sz[0])
+		#print 'BDT Output=   '+str(sz[0])
 		T.Fill()
 	for Row in B:
 		#print S.X
@@ -598,6 +618,7 @@ class Trainer:
 		vary[0]=B.Y
 		sy[0]=B.Y
 		z = reader.EvaluateMVA( "BDTG" )
+		histshapeB.Fill(z)
 		if z<0:
 			sz[0]=-1
 			HB.Fill(sx[0],sy[0])
@@ -605,26 +626,39 @@ class Trainer:
 			hyb.Fill(sy[0])
 		else:
 			sz[0]=-2
-			print sx[0], sy[0]
+			#print sx[0], sy[0]
 			HWB.Fill(sx[0],sy[0])
 			hxwb.Fill(sx[0])
 			hywb.Fill(sy[0])
 		T.Fill()
-		print 'BDT Output=   '+str(sz[0])
+		#print 'BDT Output=   '+str(sz[0])
 
 	#plot (Test-) Tree (Scatterplot)
 	####----doesn't work, but Histos HS/HB/HWS/HWB plot the same----####
-	T.SetMarkerStyle(8)
-	T.SetMarkerColor(ROOT.kRed)
-	T.Draw('X:Y', 'Z==-2', 'SCAT')
-	T.SetMarkerColor(ROOT.kYellow+1)
-	T.Draw('X:Y', 'Z==1', 'SCAT SAME')
-	T.SetMarkerColor(ROOT.kBlue)
-	T.Draw('X:Y', 'Z==2', 'SCAT SAME')
-	T.SetMarkerColor(ROOT.kYellow+1)
-	T.Draw('X:Y', 'Z==-1', 'SCAT SAME')
-	c2.SaveAs(self.PlotFile)
-	c2.Clear()
+	#T.SetMarkerStyle(8)
+	#T.SetMarkerColor(ROOT.kRed)
+	#T.Draw('X:Y', 'Z==-2', 'SCAT')
+	#T.SetMarkerColor(ROOT.kYellow+1)
+	#T.Draw('X:Y', 'Z==1', 'SCAT SAME')
+	#T.SetMarkerColor(ROOT.kBlue)
+	#T.Draw('X:Y', 'Z==2', 'SCAT SAME')
+	#T.SetMarkerColor(ROOT.kYellow+1)
+	#T.Draw('X:Y', 'Z==-1', 'SCAT SAME')
+	#c2.SaveAs(self.PlotFile)
+	#c2.Clear()
+
+	#Print OutputShape of BDT
+	#ROOT.gStyle.SetOptStat('O U')
+	#cs = ROOT.TCanvas('cs', 'cs', 800, 640)
+	c, t = self.PreparePlot()
+	histshapeS.SetLineColor(ROOT.kRed)
+	histshapeS.Draw("HIST")
+	histshapeB.SetLineColor(ROOT.kBlue)
+	histshapeB.Draw('SAME HIST')
+	t.Draw("SAME")
+	self.FinishPlot(c)
+	#cs.Print("BDTShape.pdf")
+	ROOT.gStyle.SetOptStat(0)
 
 	#Print Scatterplot of Testevents with correct/wrong classified Signal/Background
 	cnew = ROOT.TCanvas('cnew', 'cnew', 800, 640)
@@ -645,8 +679,32 @@ class Trainer:
 	HB.SetMarkerStyle(8)
 	HB.SetMarkerSize(0.5)
 	HB.Draw('same')
+	t = ROOT.TLatex()
+	t.SetTextFont(43)
+	p = cnew.GetPad(0)
+	#textsize = t.GetTextSize()
+	pad_width  = cnew.XtoPixel(cnew.GetX2())
+	pad_height = cnew.YtoPixel(cnew.GetY1())
+	print cnew.GetUymax()
+	#if (pad_width < pad_height):
+	#  charheight = textsize*pad_width
+	#else:
+        #  charheight = textsize*pad_height
+	t.SetTextSize(10)
+	p.Update()
+	X=p.GetUxmin()
+	print X
+	Y=p.GetUymax()# - t.GetTextSize()
+	print Y
+	#t.AddText("#splitline{"+str(self.best_variables)+"}{"+str(self.bdtoptions)+"}")
+	t.DrawLatex(X, Y ,"#splitline{"+str(self.best_variables)+"}{"+str(self.bdtoptions)+"}")
+	#self.PlotOPTs(cnew)
 	cnew.Print(self.PlotFile)
 	cnew.Close()
+
+	#print Output (in right order)
+	#cs.Print(self.PlotFile)
+	#cs.Close()
 	
 	#Print Histo for var 'X' with correct/wrong classified Signal/Background
 	cx = ROOT.TCanvas('cx', 'cx', 800, 640)
@@ -658,6 +716,8 @@ class Trainer:
 	hxws.Draw("SAME HIST")
 	hxwb.SetLineColor(ROOT.kBlue)
 	hxwb.Draw("SAME HIST")
+	self.PlotOPTs(cx)
+	cx.Update()
 	cx.Print(self.PlotFile)
 	cx.Close()
 
@@ -708,8 +768,8 @@ class Trainer:
 
     def EvolveBDTs(self):
 	
-	NTreeslist=range(1,3)
-	#NTreeslist.append(100)
+	NTreeslist=range(1,10)
+	NTreeslist.append(100)
 	#NTreeslist.append(1000)
 	#NTreeslist.append(10000)
 	for NTree in NTreeslist:
@@ -717,5 +777,32 @@ class Trainer:
 		self.trainBDT(self.best_variables)
 		self.testBDT(self.best_variables)
 
+    def PlotOPTs(self, c):
+	t = ROOT.TLatex()
+	t.SetTextFont(43)
+	p = c.GetPad(0)
+	p.Update()
+	pad_width  = p.GetX2()-p.GetX1()
+	pad_height = p.GetY2()-p.GetY1()
+	t.SetTextSize(10)
+	X = p.GetUxmin()-0.09*pad_width 
+	Y=c.GetUymax() + 0.03*pad_height
+	t.DrawLatex(X,Y,"#splitline{"+str(self.best_variables)+"}{"+str(self.bdtoptions)+"}")
 
+
+    def PreparePlot(self):
+	c = ROOT.TCanvas('c','c',800,800)
+	c.SetTopMargin(0.2)
+	t = ROOT.TLatex()
+	t.SetTextFont(43)
+	t.SetTextSize(10)
+	X=c.GetUxmin()
+	Y=c.GetUymax() - 0.05 #* pad_height
+	t.DrawLatex(X,Y,"#splitline{"+str(self.best_variables)+"}{"+str(self.bdtoptions)+"}")
+	return c, t
+
+    def FinishPlot(self,c):
+	c.Update()
+	c.Print(self.PlotFile)
+	c.Close()
 ####def

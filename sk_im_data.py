@@ -15,29 +15,37 @@ DATA.SetBtestPath('/nfs/dust/cms/user/pkraemer/MVAComparison/2D_test_scat.root')
 DATA.SetSTreename("S")
 DATA.SetBTreename("B")
 
-estimatorslist=range(10)
+estimatorslist=[]
+
+#estimatorslist=range(1,10)
+estimatorslist.append(1)
+#estimatorslist.append(1000)
+#estimatorslist.append(10000)
 plotlist=[]
 
 DATA.SetGradBoostOption('n_estimators', 1500)
-DATA.SetGradBoostOption("max_depth", 2)
+DATA.SetGradBoostOption("max_depth", 10)
 DATA.SetGradBoostOption("learning_rate", 0.05)
 #DATA.SetGradBoostOption("min_samples_leaf", 250)
 
+DATA.SetPlotFile()
 DATA.Convert()
+DATA.Shuffle()
 #print DATA.Y_Array
 #DATA.PrintLog()
 
 for estimator in estimatorslist:
-	DATA.SetGradBoostOption('n_estimators', estimator+1)
+	DATA.SetGradBoostOption('n_estimators', estimator)
 	train1=DATA.Classify()
-	f1, f2, f3 = DATA.PrintOutput(train1)
+	f1, f2, f3, f4 = DATA.PrintOutput(train1)
+	plotlist.append(DATA.Output(train1))
 	plotlist.append(f1)
+	plotlist.append(f4)
 	plotlist.append(f2)
 	plotlist.append(f3)
-	plotlist.append(DATA.Output(train1))
+	plotlist.append(DATA.ROCCurve(train1))
 
-
-with PdfPages('results.pdf') as pdf:
+with PdfPages(DATA.PlotFile) as pdf:
 	for fig in plotlist:
 		pdf.savefig(fig)
 #DATA.PrintOutput(train2)

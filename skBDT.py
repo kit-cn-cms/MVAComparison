@@ -86,12 +86,17 @@ class data:
 	self.logfilename="log.txt"
 	self.listoffigures=[]
 	self.Class_ID=[]
-
+	self.PlotFile='SKlearn_PlotFile.pdf'
 
 #complete for scatterplots of output
 	self.testsample=[]
 	self.testsamplepath='/nfs/dust/cms/user/pkraemer/MVAComparison/2D_test_01.root'
 
+
+
+  def SetPlotFile(self):
+        dt=datetime.datetime.now().strftime("%Y_%m%d_%H%M%S")
+	self.PlotFile='SKlearn_PlotFile_'+dt+'.pdf'
 
   def SetLogfileName(self,NAME=''):
 	self.logfilename = NAME
@@ -279,22 +284,6 @@ class data:
         SKout.Close()
 
   def ROCInt(self,train):
-#####----- wrong stuff... copy for shuffling training events -----#####
-	#m = min(len(self.Y_Array), len(self.test_X))
-	#true = self.Y_Array
-	#test = train.decision_function(self.test_X)
-	#np.random.shuffle(true)
-	#np.random.shuffle(test)
-	#ntrue, ntest = [],[]
-	#selection = np.random.permutation(m)		#creates array with permutation of range from smaller array)
-	#for i in selection:
-	#	ntrue.append(true[i])
-	#	ntest.append(test[i])
-	#print ntrue
-	#print ntest
-	#print len(ntrue)
-	#print len(ntest)
-	#return roc_auc_score(ntrue, ntest)
 	return roc_auc_score(self.test_y, train.decision_function(self.test_X))
 
 
@@ -302,7 +291,7 @@ class data:
   def ROCCurve(self,train):
 	decisions = train.decision_function(self.test_X)
 # Compute ROC curve and area under the curve
-	fpr, tpr, thresholds = roc_curve(self.Y_Array, decisions)
+	fpr, tpr, thresholds = roc_curve(self.test_y, decisions)
 	#print fpr
 	#print "\n\n\n\n\n"
 	#print tpr
@@ -327,9 +316,10 @@ class data:
 	plt.title('Receiver operating characteristic')
 	plt.legend(loc="lower right")
 	plt.grid()
-	plt.show()
+	#plt.show()
 	fig.savefig("bspROC.pdf")
 	self.listoffigures.append(fig)
+	return fig
 
 
 #  def KSTest(self,train):
@@ -426,7 +416,7 @@ class data:
 	plt.ylabel(name2)
 	plt.yticks(opt2,opt2)
 	plt.title("ROC integrals")
-	plt.show()
+	#plt.show()
 	fig.savefig("bestROC_"+str(name1)+"_"+str(name2)+".pdf")
 	self.listoffigures.append(fig)
 
@@ -440,9 +430,18 @@ class data:
 #makes scatterplot with classification of testevents and wrong classified Events
 ###--- add histos ---###
   def PrintOutput(self,train):
-	fig = plt.figure(figsize=(10,8))
+	#fig = plt.figure(figsize=(10,8))
+	fig, ax = plt.subplots()
+	ax.set_xlim([-5, 5])
+	ax.set_ylim([-5, 5])	
 	x = self.test_X
 	y = train.predict(x)
+	decisionsS=train.decision_function(x[:(len(x)/2)])
+	decisionsB=train.decision_function(x[(len(x)/2):])
+	decisions = np.concatenate((decisionsS,decisionsB))
+	low = min(np.min(d) for d in decisions)
+	high = max(np.max(d) for d in decisions)
+	low_high = (low,high)
 	wsx, wsy, wbx, wby, sx, sy, bx, by = [],[],[],[],[],[],[],[]
 	for i in range(len(y)):
 		#print str(i)+'::'+str(self.test_y[i])+'::'+str(y[i])+'\n'
@@ -467,6 +466,14 @@ class data:
 	plt.text(-4.1,4.7,self.ReturnOpts(),verticalalignment='top', horizontalalignment='left', fontsize=7)
 	fig.savefig("output.pdf")
 	self.listoffigures.append(fig)
+
+	shape = plt.figure(figsize=(10,8))
+	plt.hist(decisionsS, color='r', range=low_high, bins=50, histtype='step', normed=False, label='Signal')
+	plt.hist(decisionsB, color='b', range=low_high, bins=50, histtype='step', normed=False, label='Background')
+	plt.xlabel('SKlearn decision_function')
+	plt.ylabel('Events')
+	plt.title('shape of BDT Output')
+	plt.legend(loc='best')
 
 	lowx = min(np.min(d) for d in x[:,0])
 	highx = max(np.max(d) for d in x[:,0])
@@ -500,7 +507,7 @@ class data:
 	plt.text(-4,38.5,self.ReturnOpts(),verticalalignment='top', horizontalalignment='left', fontsize=7 )
 	self.listoffigures.append(histy)
 
-	return fig, histx, histy
+	return fig, histx, histy, shape
 
 
 #makes 2d-Histo with BDT output, appends to figurelist
@@ -581,8 +588,7 @@ class data:
 	return fig
 
 
-
   def PrintFigures(self):
-	with PdfPages('results.pdf') as pdf:
+	with PdfPages(self.PlotFile) as pdf:
 		for fig in self.listoffigures:
 			pdf.savefig(fig)
