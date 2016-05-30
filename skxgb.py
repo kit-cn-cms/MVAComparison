@@ -27,7 +27,8 @@ import itertools
 from array import array
 import matplotlib.colors as colors
 import matplotlib.cm as cm
-
+from scipy import stats
+from sklearn.externals import joblib
 
 
 def TwoDRange(xmin, xmax, ymin, ymax, steps):
@@ -56,6 +57,10 @@ class xgbLearner:
 	#self.Weights_Array=[]
 	self.test_var=[]			#Test-Sample: Variables of ROOT.Tree converted to np.Array (shape= ['f',[var1,var2,var3,...]...])
 	self.test_ID=[]				#Training-Sample: IDs of Events (0 for Background; 1 for Signal)
+	self.test_Background=[]			#Test-Sample: Variables of ROOT.Tree converted to np.Array (shape= ['f',[var1,var2,var3,...]...]); only Background 
+	self.test_Signal=[]			#Test-Sample: Variables of ROOT.Tree converted to np.Array (shape= ['f',[var1,var2,var3,...]...]); only Signal
+	self.train_Background=[]		#Train-Sample: Variables of ROOT.Tree converted to np.Array (shape= ['f',[var1,var2,var3,...]...]); only Background
+	self.train_Signal=[]			#Train-Sample: Variables of ROOT.Tree converted to np.Array (shape= ['f',[var1,var2,var3,...]...]); only Signal
 #-------file-paths:-------#			#File Path of Training/TestSamples; plotfile, LogFile; OutFile
 	self.SPath='/nfs/dust/cms/user/pkraemer/trees/ttH_nominal.root'
 	self.StestPath='/nfs/dust/cms/user/pkraemer/trees/ttH_nominal.root'
@@ -89,12 +94,16 @@ class xgbLearner:
 #-------Storage:-------#
 	self.listoffigures=[]			#List with all plots
 	self.plot = False			#Flag if PLots are created or not
+	self.Classifierlist=[]			#stores different Classifiers
+	self.Classifiernames=[]
+	self.CLFname='sklearn Classification'	#sets Classifiername to label plots. must be set befor each action
+	self.ClassifierPath='../CLF_Save/'	#path to folder with stored classifiers
+	self.LastClassification=''		#path to .pkl-file with last classifier
 
 #-----------------------------------------------#
 ########unused########
 #	self.train
-	self.train_Background=[]
-	self.train_Signal=[]
+
 
 #	self.SKout=ROOT.TFile(self.outname,"RECREATE")
 	self.sy_tr=[]
@@ -111,6 +120,9 @@ class xgbLearner:
         dt=datetime.datetime.now().strftime("%Y_%m%d_%H%M%S")
 	self.PlotFile = 'SKlearn_PlotFile_'+dt+'.pdf'
 	self.plot = True
+
+  def SetCLFname(self,name):
+    self.CLFname=name
 
 #create new Plotfile [use at the beginning of training/testing; all options, variables and evaluationvalues are printed there]
   def SetLogfileName(self):
@@ -153,7 +165,11 @@ class xgbLearner:
 	#train_Sweight=root2array(self.SPath, self.Streename, self.weights)
 	#train_Bweight=root2array(self.BPath, self.Btreename, self.weights)
 	train_Signal=rec2array(train_Signal)
+	self.train_Signal = train_Signal
+	print '#Signalevents = ', len(train_Signal)
 	train_Background=rec2array(train_Background)
+	self.train_Background = train_Background
+	print '#Backgroundevents = ', len(train_Background)
 	#train_Sweight=rec2array(train_Sweight)
 	#train_Bweight=rec2array(train_Bweight)
 	X_train = np.concatenate((train_Signal, train_Background))
@@ -165,7 +181,9 @@ class xgbLearner:
 	test_Signal=root2array(self.StestPath, self.Streename, self.variables)
 	test_Background=root2array(self.BtestPath, self.Btreename, self.variables)
 	test_Signal=rec2array(test_Signal)
+	self.test_Signal = test_Signal
 	test_Background=rec2array(test_Background)
+	self.test_Background = test_Background
 	self.test_var=np.concatenate((test_Signal,test_Background))
 	self.test_ID=np.concatenate((np.ones(test_Signal.shape[0]), np.zeros(test_Background.shape[0])))
 	self.permuteVars()
@@ -236,17 +254,32 @@ class xgbLearner:
 	self.presort='auto'
 
 
-#trains on training sample and returns classifier fit
+#trains on training sample, returns and saves classifier fit as .pkl
   def Classify(self):
 	train = GradientBoostingClassifier(learning_rate=self.learning_rate, n_estimators=self.n_estimators, max_depth=self.max_depth, random_state=self.random_state, loss=self.loss, subsample=self.subsample, min_samples_split=self.min_samples_split, min_samples_leaf=self.min_samples_leaf, min_weight_fraction_leaf=self.min_weight_fraction_leaf, init=self.init, max_features=self.max_features, verbose=self.verbose, max_leaf_nodes=self.max_leaf_nodes, warm_start=self.warm_start, presort=self.presort).fit(self.Var_Array,self.ID_Array)
 	self.PrintLog(train)
+	dt=datetime.datetime.now().strftime("%Y_%m%d_%H%M%S")
+	joblib.dump(train, self.ClassifierPath+'CLF_'+dt+'.pkl') 
+	self.LastClassification = self.ClassifierPath+'CLF_'+dt+'.pkl'
 	return train
       
+      
+#trains on training sample, returns and saves classifier fit as .pkl
   def XGBClassify(self):
 	train = xgb.XGBClassifier(learning_rate=self.learning_rate, n_estimators=self.n_estimators, max_depth=self.max_depth)#, random_state=self.random_state, loss=self.loss, subsample=self.subsample, min_samples_split=self.min_samples_split, min_samples_leaf=self.min_samples_leaf, min_weight_fraction_leaf=self.min_weight_fraction_leaf, init=self.init, max_features=self.max_features, verbose=self.verbose, max_leaf_nodes=self.max_leaf_nodes, warm_start=self.warm_start)#, presort=self.presort)
 	train.fit(self.Var_Array,self.ID_Array)
 	self.PrintLog(train)
+	#dt=datetime.datetime.now().strftime("%Y_%m%d_%H%M%S")
+	#joblib.dump(train, self.ClassifierPath+'CLF_'+dt+'.pkl') 
+	#self.LastClassification = self.ClassifierPath+'CLF_'+dt+'.pkl'
 	return train
+      
+
+#load classifier of recent training  
+  def LoadClassifier(self, path):
+	clf = joblib.load(path)
+	return clf
+      
       
 #Scikit-Learn Score function, the higher the better
   def Score(self,train):
@@ -263,7 +296,7 @@ class xgbLearner:
 #prints logfile of the training
   def PrintLog(self,train):
 	gbo='learning_rate='+str(self.learning_rate)+', n_estimators='+str(self.n_estimators)+', max_depth='+str(self.max_depth)+', random_state='+str(self.random_state)+', loss='+str(self.loss)+', subsample='+str(self.subsample)+', min_samples_split='+str(self.min_samples_split)+', min_samples_leaf='+str(self.min_samples_leaf)+', min_weight_fraction_leaf='+str(self.min_weight_fraction_leaf)+', init='+str(self.init)+', max_features='+str(self.max_features)+', verbose='+str(self.verbose)+', max_leaf_nodes='+str(self.max_leaf_nodes)+', warm_start='+str(self.warm_start)+', presort='+str(self.presort)
-	outstr='\n\n-----------------input variables:-----------------\n'+str(self.variables)+'\n\n-----------------weights:-----------------\n'+str(self.weights)+'\n\n-----------------Gradient Boost Options:-----------------\n'+gbo+'\n\n\n\n'+'--------------- ROC integral = '+str(self.ROCInt(train))+' -----------------'
+	outstr='\n\n-----------------input variables:-----------------\n'+str(self.variables)+'\n\n-----------------weights:-----------------\n'+str(self.weights)+'\n\n-----------------'+str(self.CLFname)+' Options:-----------------\n'+gbo+'\n\n\n\n'+'--------------- ROC integral = '+str(self.ROCInt(train))+' -----------------\n\n\n---------------- KS-Test:'+str(self.KSTest(train))+'-------------------'
 	logfile = open(self.logfilename,"a+")
 	logfile.write('######'+datetime.datetime.now().strftime("%Y_%m%d_%H%M%S")+'#####'+outstr+'###############################################\n\n\n\n\n')
 	logfile.close()
@@ -302,7 +335,7 @@ class xgbLearner:
 	#plt.plot([0, 1], [1, 0], '--', color=(0.6, 0.6, 0.6), label='Luck')
 	plt.xlim([-0.05, 1.05])
 	plt.ylim([-0.05, 1.05])
-	plt.xlabel('False Positive Rate')
+	plt.xlabel('1-False Positive Rate')
 	plt.ylabel('True Positive Rate')
 	plt.title('Receiver operating characteristic')
 	plt.legend(loc="lower right")
@@ -318,6 +351,7 @@ class xgbLearner:
 		ymark = ymax*1.1
 	else:
 		ymark = ymax*0.9
+	#plt.text(xmark, ymark, train, verticalalignment='top', horizontalalignment='left', fontsize=7 )
 	plt.text(xmark, ymark, self.ReturnOpts(), verticalalignment='top', horizontalalignment='left', fontsize=7 )
     self.listoffigures.append(fig)
     return fig
@@ -391,27 +425,27 @@ class xgbLearner:
 			#print val
 			self.SetGradBoostOption(opt, val)
 		train = self.Classify()
+		trainx= self.XGBClassify()
+		self.Classifierlist.append(train)
+		self.Classifiernames.append('GradBoostClass')
+		self.Classifierlist.append(trainx)
+		self.Classifiernames.append('XGBClassifier')
 		ROCs.append([self.ROCInt(train),self.ReturnOpts()])
 		if self.ROCInt(train)>bestroc[0]:
 			bestroc[0] = self.ROCInt(train)
 			bestroc[1] = self.ReturnOpts()
-		if self.plot == True:
-			self.ROCCurve(train)
-			self.PrintOutput(train)
-			self.Output(train)
+		#if self.plot == True:
+			#self.ROCCurve(train)
+			#self.PrintOutput(train)
+			#self.Output(train)
 
 
 #makes scatterplot with classification of testevents and wrong classified Events
 ###--- add histos ---###
   def PrintOutput(self,train):
-	value = self.test_var
-	predict = train.predict(value)
-
-	#compute decision_function	
-	#decisionsS=train.decision_function(value[:(len(value)/2)])
-	#decisionsB=train.decision_function(value[(len(value)/2):])
-	decisionsS=train.predict(value[:(len(value)/2)])
-	decisionsB=train.predict(value[(len(value)/2):])
+	#predict Probability for Signal
+	decisionsS = train.predict_proba(self.test_Signal)[:,1]
+	decisionsB = train.predict_proba(self.test_Background)[:,1]
 	decisions = np.concatenate((decisionsS,decisionsB))
 	low = min(np.min(d) for d in decisions)
 	high = max(np.max(d) for d in decisions)
@@ -421,9 +455,9 @@ class xgbLearner:
 	shape = plt.figure(figsize=(10,8))
 	plt.hist(decisionsS, color='r', range=low_high, bins=50, histtype='step', normed=False, label='Signal')
 	plt.hist(decisionsB, color='b', range=low_high, bins=50, histtype='step', normed=False, label='Background')
-	plt.xlabel('SKlearn decision_function')
+	plt.xlabel('Probability for Signal')
 	plt.ylabel('Events')
-	plt.title('shape of BDT Output')
+	plt.title('BDT Output ('+str(self.CLFname)+')')
 	plt.legend(loc='best')
 	axes = shape.gca()
 	ymin, ymax = axes.get_ylim()
@@ -435,16 +469,27 @@ class xgbLearner:
 		ymark = ymax*1.1
 	else:
 		ymark = ymax*0.9
-	plt.text(xmark, ymark, self.ReturnOpts(), verticalalignment='top', horizontalalignment='left', fontsize=7 )
+	plt.text(xmark, ymark, train, verticalalignment='top', horizontalalignment='left', fontsize=7 )
+	#plt.text(xmark, ymark, self.ReturnOpts(), verticalalignment='top', horizontalalignment='left', fontsize=7 )
 	self.listoffigures.append(shape)
 	plt.close()
+	
+  def PrintScatter(self,train):
+	value = self.test_var
+	predictS = train.predict(self.test_Signal)	
+	predictB = train.predict(self.test_Background)	
+	#print 'predict Signal = ', predictS
+	#print 'predict Background = ', predictB 
 
-	#check if prediction is correct or not
-	for i in range(len(predict)):
-		if (self.test_ID[i] != predict[i] and self.test_ID[i] == 0):
-			predict[i] = -1		#Background wrong classified
-		elif (self.test_ID[i] != predict[i] and self.test_ID[i] == 1):
-			predict[i] = 2		#Signal wrong classified
+	#check if prediction for Signal is correct or not
+	for S in range(len(predictS)):
+		if (predictS[S] != 1):
+		  predictS[S] = 2	#Signal wrong classified
+	for B in range(len(predictB)):
+		if (predictB[B] != 0):
+		  predictB[B] = -1	#Background wrong classified
+	
+	predict = np.concatenate((predictS, predictB))
 
 	#plot for every combination of variables
 	for pair, index in zip(self.varpairs, self.varindex):
@@ -490,9 +535,13 @@ class xgbLearner:
 			else:
 				print "Whuaaaat??? - wrong classification in "+str(i)
 
-		plt.scatter(value[:,index[0]::1000], value[:,index[1]::1000], c=predict, cmap='rainbow', alpha = 1)
+		ar1 = value[:,index[0]]
+		ar2 = value[:,index[1]]
+		norm = len(ar1)/1000
+		plt.scatter(ar1[::norm],ar2[::norm], c=predict[::norm], cmap='rainbow', alpha=1)
+		#plt.scatter(value[:,index[0]::1000], value[:,index[1]::1000], c=predict, cmap='rainbow', alpha = 1)
 		plt.colorbar()
-		plt.title('BDT Output for Testtree')
+		plt.title('BDT prediction for 1000 Testevents ('+str(self.CLFname)+')')
 		axes = fig.gca()
 		ymin, ymax = axes.get_ylim()
 		if low_x<0:
@@ -503,9 +552,26 @@ class xgbLearner:
 			ymark = ymax*1.17
 		else:
 			ymark = ymax*0.83
-		plt.text(xmark, ymark, self.ReturnOpts(), verticalalignment='top', horizontalalignment='left', fontsize=7 )
+		plt.text(xmark, ymark, train, verticalalignment='top', horizontalalignment='left', fontsize=7 )
+		#plt.text(xmark, ymark, self.ReturnOpts(), verticalalignment='top', horizontalalignment='left', fontsize=7 )
 		self.listoffigures.append(fig)
 		plt.close()
+
+
+  def PrintHistos(self,train):
+	value = self.test_var
+	predictS = train.predict(self.test_Signal)	
+	predictB = train.predict(self.test_Background)	
+
+	#check if prediction for Signal is correct or not
+	for S in range(len(predictS)):
+		if (predictS[S] != 1):
+		  predictS[S] = 2	#Signal wrong classified
+	for B in range(len(predictB)):
+		if (predictB[B] != 0):
+		  predictB[B] = -1	#Background wrong classified
+	
+	predict = np.concatenate((predictS, predictB))
 
 	#plot histos with Classified Signal/Background
 	for var in self.variables:
@@ -520,6 +586,7 @@ class xgbLearner:
 				wb.append(value[i,self.variables.index(var)])		#Background wrong classified
 			elif (predict[i] == 2):
 				ws.append(value[i,self.variables.index(var)])		#Signal wrong classified
+				#print ws
 			elif (predict[i] == 1):
 				cs.append(value[i,self.variables.index(var)])		#Signal correct classified
 			elif (predict[i] == 0):
@@ -530,8 +597,8 @@ class xgbLearner:
 		b = np.concatenate((cb,ws))
 
 		histx = plt.figure(figsize=(10,8))
-		plt.hist(s, color='r', range=lowx_highx, bins=25, histtype='stepfilled', alpha=0.5, normed=False, label='signal')
-		plt.hist(b, color='b', range=lowx_highx, bins=25, histtype='stepfilled', alpha=0.5, normed=False, label='background')
+		plt.hist(s, color='r', range=lowx_highx, bins=25, histtype='stepfilled', alpha=0.2, normed=False, label='signal')
+		plt.hist(b, color='b', range=lowx_highx, bins=25, histtype='stepfilled', alpha=0.2, normed=False, label='background')
 		plt.hist(cs, color='orange', range=lowx_highx, bins=25, histtype='step', normed=False, label='correct signal')
 		plt.hist(cb, color='c', range=lowx_highx, bins=25, histtype='step', normed=False, label='correct background')
 		plt.hist(ws, color='darkred', range=lowx_highx, bins=25, histtype='step', normed=False, label='wrong signal')
@@ -549,12 +616,13 @@ class xgbLearner:
 			ymark = ymax*1.1
 		else:
 			ymark = ymax*0.9
-		plt.title('Histogramm of Classification '+var)
-		plt.text(xmark, ymark, self.ReturnOpts(), verticalalignment='top', horizontalalignment='left', fontsize=7 )	
+		plt.title('Histogramm of Classification '+var+' '+self.CLFname)
+		plt.text(xmark, ymark, train, verticalalignment='top', horizontalalignment='left', fontsize=7 )
+		#plt.text(xmark, ymark, self.ReturnOpts(), verticalalignment='top', horizontalalignment='left', fontsize=7 )	
 		self.listoffigures.append(histx)
 		plt.close()
 
-	return fig, histx, shape
+	#return fig, histx, shape
 
 
 #return Classifier Options
@@ -603,13 +671,8 @@ class xgbLearner:
 		ax.set_ylabel(pair[1])
 
 		bin = 100
-		#print low_x
-		#print low_y
-		#print high_x
-		#print high_y
 
 		x = TwoDRange(low_x, high_x, low_y, high_y, bin)
-		#print x
 		v = []
 		#v = np.ndarray(shape=(len(x)/len(self.variables),len(self.variables)), dtype=float)
 		l = range(len(self.variables))
@@ -632,25 +695,70 @@ class xgbLearner:
 		a= v[:,index[0]]
 		b= v[:,index[1]]
 		#z = train.decision_function(v)
-		z = train.predict(v)
+		#z = train.predict(v)
+		z = train.predict_proba(v)[:,1]
 		plt.hist2d(a, b, bins=bin, weights=z)
 		plt.colorbar()
 		plt.title('BDT prediction for '+pair[0]+', '+pair[1])
 		xmark = low_x-(high_x-low_x)*0.07
 		ymark = high_y+(high_y-low_y)*0.09
-		plt.text(xmark,ymark,self.ReturnOpts(),verticalalignment='top', horizontalalignment='left', fontsize=7)	
+		plt.text(xmark, ymark, train, verticalalignment='top', horizontalalignment='left', fontsize=7 )
+		#plt.text(xmark,ymark,self.ReturnOpts(),verticalalignment='top', horizontalalignment='left', fontsize=7)	
 		self.listoffigures.append(fig)
 		plt.close()
 
 
   def KSTest(self, train):
-	value = self.test_var
-	predict = train.predict(value)
-	good, bad = 0,0
-	for i in range(len(predict)):
-		if predict[i]==self.test_ID[i]:
-			good+=1
-		else:
-			bad+=1
-	KS=(good-bad)/(good+bad)
-	return KS
+	testS=train.predict_proba(self.test_Signal)[:,1]
+	testB=train.predict_proba(self.test_Background)[:,1]
+	trainS=train.predict_proba(self.train_Signal)[:,1]
+	trainB=train.predict_proba(self.train_Background)[:,1]
+	KSS = stats.ks_2samp(trainS,testS)
+	KSB = stats.ks_2samp(trainB,testB)
+	return KSS, KSB
+
+  def CLFsCorrelation(self, clfs, names):
+    combs = itertools.combinations(clfs, 2)
+    clfcombs = list(combs)
+    indexcombs=[]
+    for comb in clfcombs:
+      print comb
+      indexpair=[]
+      for clf in comb:
+	indexpair.append(clfs.index(clf))
+	print indexpair
+      indexcombs.append(indexpair)
+      pred1S = comb[0].predict_proba(self.test_Signal)[:,1]
+      pred1B = comb[0].predict_proba(self.test_Background)[:,1]
+      pred2S = comb[1].predict_proba(self.test_Signal)[:,1]
+      pred2B = comb[1].predict_proba(self.test_Background)[:,1]
+      
+      #create plot and set limits and labels
+      fig, ax = plt.subplots(figsize=(10,8))
+      ax.set_xlim([0, 1])
+      ax.set_ylim([0, 1])
+      ax.set_xlabel('prediction with '+str(names[indexpair[0]]))
+      ax.set_ylabel('prediction with '+str(names[indexpair[1]]))
+      
+      plt.scatter(pred1S, pred2S, c='r')
+      plt.scatter(pred1B, pred2B, c='b')
+      self.listoffigures.append(fig)
+      plt.close()
+      
+      #pred1 = np.concatenate(pred1S, pred1B)
+      #pred2 = np.concatenate(pred2S, pred2B)
+      #return np.corrcoef(pred1, pred2)[0,1]
+    
+  def SplitSample(self):
+    sig = []
+    bgr = []
+    for i in range(len(self.ID_Array)):
+      if (self.ID_Array == 1):
+	sig.append(self.Var_Array[i])
+      elif (self.ID_Array == 0):
+	bgr.append(self.Var_Array[i])
+    return sig, bgr
+      
+#  def compareTrain(self, trains):
+    
+
